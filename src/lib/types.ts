@@ -6,6 +6,7 @@ export interface NodeQA {
   answer: string;
   approved: boolean;
   timestamp: number;
+  suggestedTopics?: string[];
 }
 
 export interface ConceptNodeData {

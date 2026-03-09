@@ -70,6 +70,8 @@ Answer their question using your full knowledge — be informative, specific, an
 
 Keep answers under 200 words. If the answer connects to concepts in their exploration journey, mention those connections.
 
+IMPORTANT: When mentioning key explorable concepts in your answer, wrap them in [[double brackets]] like wiki-links. For example: "The iconic fragrance is [[Chanel No. 5]], created by [[Ernest Beaux]]." Use this for specific people, places, movements, brands, events, and other searchable concepts — 3 to 6 per answer. Do NOT add a separate topics section at the end. The [[bracketed terms]] within your answer ARE the suggested topics.
+
 ## Topic: ${ctx.currentNode.label}`;
 
   if (ctx.currentNode.summary) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchSummary, fetchLinks, fetchIntro, searchWikipedia } from '@/lib/sources/wikipedia';
+import { fetchSummary, fetchLinks, fetchRelated, fetchIntro, searchWikipedia, suggestCorrection } from '@/lib/sources/wikipedia';
 
 // Strip accents for fuzzy comparison
 function normalize(s: string): string {
@@ -18,7 +18,6 @@ function bestMatch(query: string, titles: string[]): string {
     for (const word of queryWords) {
       if (titleNorm.includes(word)) score++;
     }
-    // Prefer titles that match more query words
     if (score > bestScore) {
       bestScore = score;
       best = title;
@@ -28,19 +27,38 @@ function bestMatch(query: string, titles: string[]): string {
   return best;
 }
 
+async function findBestTitle(query: string): Promise<string> {
+  // Step 1: Wikipedia full-text search
+  const search = await searchWikipedia(query);
+  if (search.titles.length > 0) {
+    return bestMatch(query, search.titles);
+  }
+
+  // Step 2: Google spell-correct, then retry Wikipedia search
+  const corrected = await suggestCorrection(query);
+  if (corrected) {
+    const retrySearch = await searchWikipedia(corrected);
+    if (retrySearch.titles.length > 0) {
+      return bestMatch(corrected, retrySearch.titles);
+    }
+  }
+
+  // Step 3: Give up, use raw query
+  return query;
+}
+
 export async function GET(request: NextRequest) {
   const title = request.nextUrl.searchParams.get('title');
   if (!title) {
     return NextResponse.json({ error: 'title parameter required' }, { status: 400 });
   }
 
-  // Always do fuzzy search first — it handles typos and finds the best match
-  const search = await searchWikipedia(title);
-  const bestTitle = search.titles.length > 0 ? bestMatch(title, search.titles) : title;
+  const bestTitle = await findBestTitle(title);
 
-  const [summary, links] = await Promise.all([
+  const [summary, links, related] = await Promise.all([
     fetchSummary(bestTitle),
     fetchLinks(bestTitle),
+    fetchRelated(bestTitle),
   ]);
 
   // Fetch the full intro section for the resolved title
@@ -49,5 +67,5 @@ export async function GET(request: NextRequest) {
     intro = await fetchIntro(summary.title);
   }
 
-  return NextResponse.json({ summary, links, intro });
+  return NextResponse.json({ summary, links, related, intro });
 }

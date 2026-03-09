@@ -21,7 +21,12 @@ export function useNodeExpand() {
         // Fetch Wikipedia links
         const wikiRes = await fetch(`/api/wikipedia?title=${encodeURIComponent(label)}`);
         const wikiData = await wikiRes.json();
-        const wikiLinks: string[] = (wikiData.links || []).slice(0, 6);
+        // Prefer semantically related articles (morelike), fall back to page links
+        const wikiLinks: string[] = (
+          wikiData.related && wikiData.related.length > 0
+            ? wikiData.related
+            : wikiData.links || []
+        ).slice(0, 6);
 
         // Optionally fetch dictionary for single words
         let dictWords: string[] = [];

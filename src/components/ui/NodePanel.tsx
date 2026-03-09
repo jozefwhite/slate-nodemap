@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, FormEvent } from 'react';
-import { X, Check, Trash2, ExternalLink, Send, GitBranch, Loader2 } from 'lucide-react';
+import { useState, useRef, useEffect, FormEvent, ReactNode } from 'react';
+import { X, Check, Trash2, ExternalLink, Send, GitBranch, Loader2, Plus, MapPin } from 'lucide-react';
 import { useExploration } from '@/hooks/useExploration';
 import { useNodeExpand } from '@/hooks/useNodeExpand';
 import { buildAskContext } from '@/lib/context-builder';
+import { makeNode, makeEdge, computeChildPositions } from '@/lib/graph-utils';
 import { NodeQA, NodeSource } from '@/lib/types';
 
 const sourceLabels: Record<NodeSource, string> = {
@@ -15,6 +16,41 @@ const sourceLabels: Record<NodeSource, string> = {
   user: 'USER',
 };
 
+// Parse [[wiki-links]] in answer text and render as clickable inline elements
+function renderAnswerWithLinks(
+  text: string,
+  onTopicClick: (topic: string) => void
+): ReactNode[] {
+  const parts: ReactNode[] = [];
+  const regex = /\[\[([^\]]+)\]\]/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const topic = match[1].trim();
+    parts.push(
+      <button
+        key={`link-${match.index}`}
+        onClick={(e) => { e.stopPropagation(); onTopicClick(topic); }}
+        className="inline text-accent hover:underline cursor-pointer font-medium"
+        title={`Explore: ${topic}`}
+      >
+        {topic}
+      </button>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
+
 export default function NodePanel() {
   const {
     nodes,
@@ -22,6 +58,7 @@ export default function NodePanel() {
     path,
     activeNodeId,
     setActiveNode,
+    addNodes,
     addConversation,
     approveAnswer,
     rejectAnswer,
@@ -51,7 +88,6 @@ export default function NodePanel() {
         const data = await res.json();
         if (data.summary?.extract || data.intro) {
           const summaryText = data.intro || data.summary?.extract || '';
-          // Update the node's summary in the store
           const { nodes: currentNodes } = useExploration.getState();
           const targetNode = currentNodes.find((n) => n.id === node.id);
           if (targetNode && !targetNode.data.summary) {
@@ -73,7 +109,7 @@ export default function NodePanel() {
           }
         }
       } catch {
-        // Silent fail — summary fetch is best-effort
+        // Silent fail
       } finally {
         setIsFetchingSummary(false);
       }
@@ -107,6 +143,7 @@ export default function NodePanel() {
 
       const responseData = await res.json();
       const answer = responseData.answer || 'Failed to get a response.';
+      const suggestedTopics: string[] = responseData.suggestedTopics || [];
 
       const qa: NodeQA = {
         id: `qa-${Date.now()}`,
@@ -114,6 +151,7 @@ export default function NodePanel() {
         answer,
         approved: false,
         timestamp: Date.now(),
+        suggestedTopics,
       };
 
       addConversation(node.id, qa);
@@ -129,6 +167,84 @@ export default function NodePanel() {
     } finally {
       setIsAsking(false);
     }
+  };
+
+  const handleBranchTopic = (topic: string) => {
+    const existingChild = nodes.find(
+      (n) =>
+        n.data.label.toLowerCase() === topic.toLowerCase() &&
+        edges.some((e) => e.source === node.id && e.target === n.id)
+    );
+    if (existingChild) {
+      setActiveNode(existingChild.id);
+      return;
+    }
+
+    const currentChildCount = edges.filter((e) => e.source === node.id).length;
+    const positions = computeChildPositions(
+      node.position.x,
+      node.position.y,
+      currentChildCount + 1,
+      (data.depth || 0) + 1
+    );
+    const pos = positions[positions.length - 1];
+
+    const newNode = makeNode(topic, 'user', pos, {
+      depth: (data.depth || 0) + 1,
+    });
+    const newEdge = makeEdge(node.id, newNode.id);
+
+    addNodes([newNode], [newEdge]);
+    setActiveNode(newNode.id);
+  };
+
+  const handleAddToMap = (qa: NodeQA) => {
+    // Auto-approve when adding to map
+    if (!qa.approved) {
+      approveAnswer(node.id, qa.id);
+    }
+
+    // Derive a short title from the question
+    let title = qa.question
+      .replace(/^(what|who|where|when|why|how|tell me about|explain|describe)\s+(is|are|was|were|do|does|did)?\s*/i, '')
+      .replace(/\?$/, '')
+      .trim();
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+    if (title.length > 50) title = title.slice(0, 47) + '...';
+    if (title.length < 3) title = qa.question.slice(0, 50);
+
+    // Check for existing child with same label
+    const existingChild = nodes.find(
+      (n) =>
+        n.data.label.toLowerCase() === title.toLowerCase() &&
+        edges.some((e) => e.source === node.id && e.target === n.id)
+    );
+    if (existingChild) {
+      setActiveNode(existingChild.id);
+      return;
+    }
+
+    const currentChildCount = edges.filter((e) => e.source === node.id).length;
+    const positions = computeChildPositions(
+      node.position.x,
+      node.position.y,
+      currentChildCount + 1,
+      (data.depth || 0) + 1
+    );
+    const pos = positions[positions.length - 1];
+
+    // Strip [[wiki-links]] from answer text for the summary
+    const cleanAnswer = qa.answer.replace(/\[\[([^\]]+)\]\]/g, '$1');
+
+    const newNode = makeNode(title, 'user', pos, {
+      depth: (data.depth || 0) + 1,
+      summary: cleanAnswer,
+      enrichedContent: `Q: ${qa.question}\nA: ${cleanAnswer}`,
+    });
+    const newEdge = makeEdge(node.id, newNode.id);
+
+    addNodes([newNode], [newEdge]);
+    setActiveNode(newNode.id);
   };
 
   const handleExpand = () => {
@@ -235,7 +351,7 @@ export default function NodePanel() {
         {data.conversations.length === 0 && !isAsking && (
           <div className="flex items-center justify-center h-full">
             <p className="text-xs text-ink-3 text-center leading-relaxed max-w-[200px]">
-              ask anything about this node. good answers get saved to build knowledge.
+              ask anything about this topic. good answers get saved to build knowledge.
             </p>
           </div>
         )}
@@ -252,7 +368,35 @@ export default function NodePanel() {
             {/* Answer */}
             <div className="flex justify-start">
               <div className="bg-surface-1 text-ink-1 text-xs px-3 py-2 max-w-[85%]">
-                <p className="leading-relaxed whitespace-pre-line">{qa.answer}</p>
+                <p className="leading-relaxed whitespace-pre-line">
+                  {renderAnswerWithLinks(qa.answer, handleBranchTopic)}
+                </p>
+
+                {/* Extra suggested topics not already inline */}
+                {qa.suggestedTopics && qa.suggestedTopics.length > 0 && (() => {
+                  const inlineTopics = new Set(
+                    (qa.answer.match(/\[\[([^\]]+)\]\]/g) || []).map(m => m.slice(2, -2).trim().toLowerCase())
+                  );
+                  const extraTopics = qa.suggestedTopics.filter(t => !inlineTopics.has(t.toLowerCase()));
+                  if (extraTopics.length === 0) return null;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-surface-2">
+                      <span className="text-2xs text-ink-3 block mb-1.5">explore further:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {extraTopics.map((topic) => (
+                          <button
+                            key={topic}
+                            onClick={() => handleBranchTopic(topic)}
+                            className="inline-flex items-center gap-1 text-2xs bg-white border border-surface-2 px-2 py-1 text-ink-2 hover:border-ink-3 hover:text-ink-0 transition-colors"
+                          >
+                            <Plus size={8} />
+                            {topic}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {!qa.approved ? (
                   <div className="flex gap-2 mt-2 pt-2 border-t border-surface-2">
@@ -263,6 +407,12 @@ export default function NodePanel() {
                       <Check size={10} /> keep
                     </button>
                     <button
+                      onClick={() => handleAddToMap(qa)}
+                      className="flex items-center gap-1 text-2xs text-accent hover:underline"
+                    >
+                      <MapPin size={10} /> add to map
+                    </button>
+                    <button
                       onClick={() => rejectAnswer(node.id, qa.id)}
                       className="flex items-center gap-1 text-2xs text-ink-3 hover:text-red-500"
                     >
@@ -270,8 +420,16 @@ export default function NodePanel() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1 text-2xs text-node-user mt-2 pt-2 border-t border-surface-2">
-                    <Check size={10} /> saved to node
+                  <div className="flex items-center gap-2 text-2xs mt-2 pt-2 border-t border-surface-2">
+                    <span className="flex items-center gap-1 text-node-user">
+                      <Check size={10} /> saved
+                    </span>
+                    <button
+                      onClick={() => handleAddToMap(qa)}
+                      className="flex items-center gap-1 text-accent hover:underline ml-auto"
+                    >
+                      <MapPin size={10} /> add to map
+                    </button>
                   </div>
                 )}
               </div>
@@ -295,7 +453,7 @@ export default function NodePanel() {
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="ask about this node..."
+            placeholder="ask about this topic..."
             disabled={isAsking}
             className="flex-1 bg-surface-1 border border-surface-2 text-xs text-ink-1 px-3 py-2 placeholder:text-ink-3 focus:outline-none focus:border-ink-3 transition-colors"
           />

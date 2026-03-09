@@ -59,10 +59,29 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await res.json();
-    const answer = data.content?.[0]?.text || 'No response generated.';
+    const rawText = data.content?.[0]?.text || 'No response generated.';
+
+    // Extract [[wiki-link]] topics from inline answer text
+    const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
+    const suggestedTopics: string[] = [];
+    let match;
+    while ((match = wikiLinkRegex.exec(rawText)) !== null) {
+      const topic = match[1].trim();
+      if (topic.length > 0 && topic.length < 80 && !suggestedTopics.includes(topic)) {
+        suggestedTopics.push(topic);
+      }
+    }
+
+    // Strip any legacy ---TOPICS--- section if the model still produces one
+    let answer = rawText;
+    const topicSplit = rawText.split('---TOPICS---');
+    if (topicSplit.length > 1) {
+      answer = topicSplit[0].trim();
+    }
 
     return NextResponse.json({
       answer,
+      suggestedTopics,
       model: data.model,
       usage: data.usage,
     });

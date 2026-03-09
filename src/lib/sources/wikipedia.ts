@@ -88,3 +88,45 @@ export async function searchWikipedia(query: string): Promise<{ titles: string[]
     return { titles: [] };
   }
 }
+
+// Find semantically related Wikipedia articles using morelike search
+export async function fetchRelated(title: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=morelike:${encodeURIComponent(title)}&srlimit=8&format=json&origin=*`,
+      {
+        headers: { 'Api-User-Agent': USER_AGENT },
+        cache: 'no-store',
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const results = data.query?.search;
+    if (!results || results.length === 0) return [];
+    return results
+      .map((r: { title: string }) => r.title)
+      .filter((t: string) => t.toLowerCase() !== title.toLowerCase());
+  } catch {
+    return [];
+  }
+}
+
+// Use Google's suggestion API to correct spelling before searching
+export async function suggestCorrection(query: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`,
+      { cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const suggestions: string[] = data[1];
+    if (!suggestions || suggestions.length === 0) return null;
+    // Return first suggestion if it differs from the original
+    const first = suggestions[0];
+    if (first.toLowerCase() !== query.toLowerCase()) return first;
+    return null;
+  } catch {
+    return null;
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Nodemap",
+  "short_name": "Nodemap",
+  "start_url": "/capture",
+  "display": "standalone",
+  "background_color": "#fafaf9",
+  "theme_color": "#0c0a09"
+}

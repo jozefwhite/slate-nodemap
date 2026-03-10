@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -9,12 +9,14 @@ import ReactFlow, {
   NodeTypes,
   EdgeTypes,
   BackgroundVariant,
+  ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import ConceptNode from './ConceptNode';
 import ImageNode from './ImageNode';
 import CustomEdge from './CustomEdge';
 import { useExploration } from '@/hooks/useExploration';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { NodeSource } from '@/lib/types';
 
 const nodeTypes: NodeTypes = {
@@ -36,6 +38,8 @@ const minimapColors: Record<NodeSource, string> = {
 
 export default function Canvas() {
   const { nodes, edges, setActiveNode } = useExploration();
+  const isMobile = useIsMobile();
+  const rfInstance = useRef<ReactFlowInstance | null>(null);
 
   const rfNodes = useMemo(
     () =>
@@ -57,17 +61,30 @@ export default function Canvas() {
     [edges]
   );
 
-  // Click any node → open panel (no auto-expand)
+  // Click any node → open panel (on mobile, also center)
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      if (isMobile && rfInstance.current) {
+        // Center the node in the upper portion of the viewport
+        // (leave room for the bottom sheet which takes ~50% of screen)
+        rfInstance.current.setCenter(
+          node.position.x + 90,
+          node.position.y - 50,
+          { zoom: 1.2, duration: 400 }
+        );
+      }
       setActiveNode(node.id);
     },
-    [setActiveNode]
+    [setActiveNode, isMobile]
   );
 
   const onPaneClick = useCallback(() => {
     setActiveNode(null);
   }, [setActiveNode]);
+
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    rfInstance.current = instance;
+  }, []);
 
   return (
     <div className="w-full h-full">
@@ -78,20 +95,24 @@ export default function Canvas() {
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onInit={onInit}
+        nodesDraggable={!isMobile}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: isMobile ? 0.5 : 0.3 }}
         minZoom={0.1}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} color="#d6d3d1" gap={40} size={0.5} />
-        <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor={(node) => minimapColors[node.data?.source as NodeSource] || '#d6d3d1'}
-          pannable
-          zoomable
-          maskColor="rgba(250, 250, 249, 0.7)"
-        />
+        {!isMobile && <Controls showInteractive={false} />}
+        {!isMobile && (
+          <MiniMap
+            nodeColor={(node) => minimapColors[node.data?.source as NodeSource] || '#d6d3d1'}
+            pannable
+            zoomable
+            maskColor="rgba(250, 250, 249, 0.7)"
+          />
+        )}
       </ReactFlow>
     </div>
   );

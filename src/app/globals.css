@@ -93,3 +93,38 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── Mobile-specific styles ──────────────────────────── */
+@media (max-width: 768px) {
+  /* Larger touch targets for nodes */
+  .react-flow__node {
+    min-height: 44px !important;
+  }
+
+  /* Larger handles for touch */
+  .react-flow__handle {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  /* Prevent text selection during touch gestures */
+  .touch-none {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Bottom sheet slide-up animation */
+@keyframes sheetSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(50%);
+  }
+}
+
+.animate-sheet-up {
+  animation: sheetSlideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}

@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { GraphNode, GraphEdge, PathStep, NodeQA, SavedMap } from '@/lib/types';
 import { getDescendantIds } from '@/lib/graph-utils';
 
+export type PanelSnap = 'peek' | 'half' | 'full' | 'closed';
+
 interface ExplorationState {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -10,6 +12,8 @@ interface ExplorationState {
   viewMode: 'graph' | 'moodboard';
   isLoading: boolean;
   seedTerm: string;
+  panelSnapPoint: PanelSnap;
+  centerNodeId: string | null;
 
   setSeedTerm: (term: string) => void;
   startSearch: (term: string) => void;
@@ -18,6 +22,8 @@ interface ExplorationState {
   setActiveNode: (nodeId: string | null) => void;
   setViewMode: (mode: 'graph' | 'moodboard') => void;
   setLoading: (loading: boolean) => void;
+  setPanelSnapPoint: (snap: PanelSnap) => void;
+  setCenterNodeId: (nodeId: string | null) => void;
   reset: () => void;
   loadMap: (map: SavedMap) => void;
   addConversation: (nodeId: string, qa: NodeQA) => void;
@@ -34,6 +40,8 @@ const initialState = {
   viewMode: 'graph' as const,
   isLoading: false,
   seedTerm: '',
+  panelSnapPoint: 'half' as PanelSnap,
+  centerNodeId: null as string | null,
 };
 
 export const useExploration = create<ExplorationState>((set) => ({
@@ -75,6 +83,10 @@ export const useExploration = create<ExplorationState>((set) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
 
   setLoading: (loading) => set({ isLoading: loading }),
+
+  setPanelSnapPoint: (snap) => set({ panelSnapPoint: snap }),
+
+  setCenterNodeId: (nodeId) => set({ centerNodeId: nodeId }),
 
   reset: () => set(initialState),
 

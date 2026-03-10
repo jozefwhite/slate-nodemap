@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useExploration } from '@/hooks/useExploration';
 import { useNodeExpand } from '@/hooks/useNodeExpand';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useBottomSheet } from '@/hooks/useBottomSheet';
 import { buildAskContext } from '@/lib/context-builder';
 import { makeNode, makeEdge, computeChildPositions } from '@/lib/graph-utils';
 import { NodeQA, NodeSource } from '@/lib/types';
@@ -44,16 +46,20 @@ function SectionHeader({
   badge,
   open,
   onToggle,
+  mobile,
 }: {
   label: string;
   badge?: string;
   open: boolean;
   onToggle: () => void;
+  mobile?: boolean;
 }) {
   return (
     <button
       onClick={onToggle}
-      className="w-full px-4 py-2 flex items-center gap-1.5 text-2xs font-mono uppercase tracking-wider text-ink-3 hover:text-ink-1 transition-colors"
+      className={`w-full px-4 flex items-center gap-1.5 text-2xs font-mono uppercase tracking-wider text-ink-3 hover:text-ink-1 transition-colors ${
+        mobile ? 'py-3 min-h-[44px]' : 'py-2'
+      }`}
     >
       {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
       <span>{label}</span>
@@ -116,6 +122,12 @@ export default function NodePanel() {
     removeNode,
   } = useExploration();
   const { expand } = useNodeExpand();
+  const isMobile = useIsMobile();
+
+  const { sheetStyle, handleProps, snapTo, currentSnap } = useBottomSheet({
+    onClose: () => setActiveNode(null),
+    initialSnap: 'half',
+  });
 
   const [question, setQuestion] = useState('');
   const [isAsking, setIsAsking] = useState(false);
@@ -376,289 +388,345 @@ export default function NodePanel() {
 
   /* ── Render ────────────────────────────────────────────── */
 
-  return (
-    <div className="animate-slide-in absolute right-0 top-0 bottom-0 w-full max-w-sm bg-white border-l border-surface-2 flex flex-col z-50">
-      {/* ── Header (always visible) ─────────────────────── */}
-      <div className="px-4 py-3 border-b border-surface-2 flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-2xs font-mono uppercase tracking-wider text-ink-3">
-              {sourceLabels[data.source]}
-            </span>
-            {data.url && (
-              <a
-                href={data.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-ink-3 hover:text-accent transition-colors"
-                title="View source"
-              >
-                <ExternalLink size={10} />
-              </a>
+  // Shared content sections
+  const panelHeader = (
+    <div className={`px-4 py-3 border-b border-surface-2 flex items-start justify-between gap-2 ${isMobile ? 'pt-1' : ''}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="text-2xs font-mono uppercase tracking-wider text-ink-3">
+            {sourceLabels[data.source]}
+          </span>
+          {data.url && (
+            <a
+              href={data.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-ink-3 hover:text-accent transition-colors"
+              title="View source"
+            >
+              <ExternalLink size={10} />
+            </a>
+          )}
+        </div>
+        <h2 className="text-sm font-medium text-ink-0 leading-tight">{data.label}</h2>
+      </div>
+      <div className="flex items-center gap-0.5 flex-shrink-0">
+        {!isRootNode && (
+          <button
+            onClick={handleRemove}
+            className={`text-ink-3 hover:text-red-500 transition-colors ${isMobile ? 'p-2 min-w-[44px] min-h-[44px] flex items-center justify-center' : 'p-1'}`}
+            title="Remove node"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+        <button
+          onClick={() => setActiveNode(null)}
+          className={`text-ink-3 hover:text-ink-0 transition-colors ${isMobile ? 'p-2 min-w-[44px] min-h-[44px] flex items-center justify-center' : 'p-1'}`}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  );
+
+  const panelContent = (
+    <div ref={contentRef} className="flex-1 overflow-y-auto min-h-0">
+      {/* ── About section ──────────────────────────────── */}
+      <div className="border-b border-surface-2">
+        <SectionHeader label="about" open={aboutOpen} onToggle={() => setAboutOpen(!aboutOpen)} mobile={isMobile} />
+
+        {aboutOpen && (
+          <div className="px-4 pb-3 -mt-0.5">
+            {isFetchingSummary ? (
+              <div className="flex items-center gap-2 text-xs text-ink-3">
+                <Loader2 size={12} className="animate-spin" />
+                loading...
+              </div>
+            ) : data.summary ? (
+              <>
+                <p
+                  className={`text-xs text-ink-2 leading-relaxed whitespace-pre-line ${
+                    !descExpanded ? 'line-clamp-4' : ''
+                  }`}
+                >
+                  {data.summary}
+                </p>
+                {data.summary.length > 200 && (
+                  <button
+                    onClick={() => setDescExpanded(!descExpanded)}
+                    className="text-2xs text-accent hover:underline mt-1.5"
+                  >
+                    {descExpanded ? 'show less' : 'show more'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-ink-3 italic">no summary available</p>
+            )}
+
+            {/* Enriched content (learned from Q&A) */}
+            {data.enrichedContent && (
+              <div className="mt-3 pt-2.5 border-t border-surface-2">
+                <span className="text-2xs font-mono uppercase tracking-wider text-ink-3 block mb-1.5">
+                  learned
+                </span>
+                <p className="text-xs text-ink-2 leading-relaxed whitespace-pre-line line-clamp-3">
+                  {data.enrichedContent}
+                </p>
+              </div>
             )}
           </div>
-          <h2 className="text-sm font-medium text-ink-0 leading-tight">{data.label}</h2>
-        </div>
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          {!isRootNode && (
-            <button
-              onClick={handleRemove}
-              className="text-ink-3 hover:text-red-500 transition-colors p-1"
-              title="Remove node"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-          <button
-            onClick={() => setActiveNode(null)}
-            className="text-ink-3 hover:text-ink-0 transition-colors p-1"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* ── Scrollable content sections ─────────────────── */}
-      <div ref={contentRef} className="flex-1 overflow-y-auto min-h-0">
-        {/* ── About section ──────────────────────────────── */}
-        <div className="border-b border-surface-2">
-          <SectionHeader label="about" open={aboutOpen} onToggle={() => setAboutOpen(!aboutOpen)} />
+      {/* ── Connections section ─────────────────────────── */}
+      <div className="border-b border-surface-2">
+        <SectionHeader
+          label="connections"
+          badge={childNodes.length > 0 ? `(${childNodes.length})` : undefined}
+          open={connectionsOpen}
+          onToggle={() => setConnectionsOpen(!connectionsOpen)}
+          mobile={isMobile}
+        />
 
-          {aboutOpen && (
-            <div className="px-4 pb-3 -mt-0.5">
-              {isFetchingSummary ? (
-                <div className="flex items-center gap-2 text-xs text-ink-3">
-                  <Loader2 size={12} className="animate-spin" />
-                  loading...
-                </div>
-              ) : data.summary ? (
-                <>
-                  <p
-                    className={`text-xs text-ink-2 leading-relaxed whitespace-pre-line ${
-                      !descExpanded ? 'line-clamp-4' : ''
-                    }`}
-                  >
-                    {data.summary}
-                  </p>
-                  {data.summary.length > 200 && (
-                    <button
-                      onClick={() => setDescExpanded(!descExpanded)}
-                      className="text-2xs text-accent hover:underline mt-1.5"
-                    >
-                      {descExpanded ? 'show less' : 'show more'}
-                    </button>
-                  )}
-                </>
-              ) : (
-                <p className="text-xs text-ink-3 italic">no summary available</p>
-              )}
+        {connectionsOpen && (
+          <div className="px-4 pb-3 -mt-0.5">
+            {!data.expanded ? (
+              <button
+                onClick={handleExpand}
+                className={`flex items-center gap-1.5 px-3 bg-ink-0 text-white text-xs hover:bg-ink-1 transition-colors ${
+                  isMobile ? 'py-2.5 min-h-[44px]' : 'py-1.5'
+                }`}
+              >
+                <GitBranch size={12} />
+                explore connections
+              </button>
+            ) : childNodes.length > 0 ? (
+              <div className="space-y-0.5">
+                {childNodes.map(
+                  (child) =>
+                    child && (
+                      <button
+                        key={child.id}
+                        onClick={() => setActiveNode(child.id)}
+                        className={`w-full text-left text-xs text-ink-2 hover:text-ink-0 px-2 hover:bg-surface-0 transition-colors flex items-center gap-2 ${
+                          isMobile ? 'py-2.5 min-h-[44px]' : 'py-1.5'
+                        }`}
+                      >
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            sourceColors[child.data.source]
+                          }`}
+                        />
+                        <span className="truncate">{child.data.label}</span>
+                      </button>
+                    )
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-ink-3 italic">no connections yet</span>
+            )}
+          </div>
+        )}
+      </div>
 
-              {/* Enriched content (learned from Q&A) */}
-              {data.enrichedContent && (
-                <div className="mt-3 pt-2.5 border-t border-surface-2">
-                  <span className="text-2xs font-mono uppercase tracking-wider text-ink-3 block mb-1.5">
-                    learned
-                  </span>
-                  <p className="text-xs text-ink-2 leading-relaxed whitespace-pre-line line-clamp-3">
-                    {data.enrichedContent}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      {/* ── Q&A section ────────────────────────────────── */}
+      <div className="border-b border-surface-2">
+        <SectionHeader
+          label="questions"
+          badge={
+            approvedCount > 0
+              ? `(${approvedCount} saved)`
+              : data.conversations.length > 0
+                ? `(${data.conversations.length})`
+                : undefined
+          }
+          open={qaOpen}
+          onToggle={() => setQaOpen(!qaOpen)}
+          mobile={isMobile}
+        />
 
-        {/* ── Connections section ─────────────────────────── */}
-        <div className="border-b border-surface-2">
-          <SectionHeader
-            label="connections"
-            badge={childNodes.length > 0 ? `(${childNodes.length})` : undefined}
-            open={connectionsOpen}
-            onToggle={() => setConnectionsOpen(!connectionsOpen)}
-          />
+        {qaOpen && (
+          <div className="px-4 pb-3 space-y-3 -mt-0.5">
+            {data.conversations.length === 0 && !isAsking && (
+              <p className="text-xs text-ink-3 italic py-1">
+                no questions yet — use the input below to ask about this topic
+              </p>
+            )}
 
-          {connectionsOpen && (
-            <div className="px-4 pb-3 -mt-0.5">
-              {!data.expanded ? (
-                <button
-                  onClick={handleExpand}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-ink-0 text-white text-xs hover:bg-ink-1 transition-colors"
-                >
-                  <GitBranch size={12} />
-                  explore connections
-                </button>
-              ) : childNodes.length > 0 ? (
-                <div className="space-y-0.5">
-                  {childNodes.map(
-                    (child) =>
-                      child && (
-                        <button
-                          key={child.id}
-                          onClick={() => setActiveNode(child.id)}
-                          className="w-full text-left text-xs text-ink-2 hover:text-ink-0 px-2 py-1.5 hover:bg-surface-0 transition-colors flex items-center gap-2"
-                        >
-                          <div
-                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                              sourceColors[child.data.source]
-                            }`}
-                          />
-                          <span className="truncate">{child.data.label}</span>
-                        </button>
-                      )
-                  )}
-                </div>
-              ) : (
-                <span className="text-xs text-ink-3 italic">no connections yet</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Q&A section ────────────────────────────────── */}
-        <div className="border-b border-surface-2">
-          <SectionHeader
-            label="questions"
-            badge={
-              approvedCount > 0
-                ? `(${approvedCount} saved)`
-                : data.conversations.length > 0
-                  ? `(${data.conversations.length})`
-                  : undefined
-            }
-            open={qaOpen}
-            onToggle={() => setQaOpen(!qaOpen)}
-          />
-
-          {qaOpen && (
-            <div className="px-4 pb-3 space-y-3 -mt-0.5">
-              {data.conversations.length === 0 && !isAsking && (
-                <p className="text-xs text-ink-3 italic py-1">
-                  no questions yet — use the input below to ask about this topic
-                </p>
-              )}
-
-              {data.conversations.map((qa) => (
-                <div key={qa.id} className="space-y-2">
-                  {/* Question */}
-                  <div className="flex justify-end">
-                    <div className="bg-ink-0 text-white text-xs px-3 py-2 max-w-[85%]">
-                      {qa.question}
-                    </div>
-                  </div>
-
-                  {/* Answer */}
-                  <div className="flex justify-start">
-                    <div className="bg-surface-1 text-ink-1 text-xs px-3 py-2 max-w-[85%]">
-                      <p className="leading-relaxed whitespace-pre-line">
-                        {renderAnswerWithLinks(qa.answer, handleBranchTopic)}
-                      </p>
-
-                      {/* Extra suggested topics not already inline */}
-                      {qa.suggestedTopics &&
-                        qa.suggestedTopics.length > 0 &&
-                        (() => {
-                          const inlineTopics = new Set(
-                            (qa.answer.match(/\[\[([^\]]+)\]\]/g) || []).map((m) =>
-                              m.slice(2, -2).trim().toLowerCase()
-                            )
-                          );
-                          const extraTopics = qa.suggestedTopics.filter(
-                            (t) => !inlineTopics.has(t.toLowerCase())
-                          );
-                          if (extraTopics.length === 0) return null;
-                          return (
-                            <div className="mt-2 pt-2 border-t border-surface-2">
-                              <span className="text-2xs text-ink-3 block mb-1.5">
-                                explore further:
-                              </span>
-                              <div className="flex flex-wrap gap-1">
-                                {extraTopics.map((topic) => (
-                                  <button
-                                    key={topic}
-                                    onClick={() => handleBranchTopic(topic)}
-                                    className="inline-flex items-center gap-1 text-2xs bg-white border border-surface-2 px-2 py-1 text-ink-2 hover:border-ink-3 hover:text-ink-0 transition-colors"
-                                  >
-                                    <Plus size={8} />
-                                    {topic}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                      {/* Answer actions */}
-                      {!qa.approved ? (
-                        <div className="flex gap-2 mt-2 pt-2 border-t border-surface-2">
-                          <button
-                            onClick={() => approveAnswer(node.id, qa.id)}
-                            className="flex items-center gap-1 text-2xs text-node-user hover:underline"
-                          >
-                            <Check size={10} /> keep
-                          </button>
-                          <button
-                            onClick={() => handleAddToMap(qa)}
-                            className="flex items-center gap-1 text-2xs text-accent hover:underline"
-                          >
-                            <MapPin size={10} /> add to map
-                          </button>
-                          <button
-                            onClick={() => rejectAnswer(node.id, qa.id)}
-                            className="flex items-center gap-1 text-2xs text-ink-3 hover:text-red-500"
-                          >
-                            <Trash2 size={10} /> discard
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-2xs mt-2 pt-2 border-t border-surface-2">
-                          <span className="flex items-center gap-1 text-node-user">
-                            <Check size={10} /> saved
-                          </span>
-                          <button
-                            onClick={() => handleAddToMap(qa)}
-                            className="flex items-center gap-1 text-accent hover:underline ml-auto"
-                          >
-                            <MapPin size={10} /> add to map
-                          </button>
-                        </div>
-                      )}
-                    </div>
+            {data.conversations.map((qa) => (
+              <div key={qa.id} className="space-y-2">
+                {/* Question */}
+                <div className="flex justify-end">
+                  <div className="bg-ink-0 text-white text-xs px-3 py-2 max-w-[85%]">
+                    {qa.question}
                   </div>
                 </div>
-              ))}
 
-              {isAsking && (
+                {/* Answer */}
                 <div className="flex justify-start">
-                  <div className="bg-surface-1 text-ink-3 text-xs px-3 py-2 animate-pulse-subtle">
-                    thinking...
+                  <div className="bg-surface-1 text-ink-1 text-xs px-3 py-2 max-w-[85%]">
+                    <p className="leading-relaxed whitespace-pre-line">
+                      {renderAnswerWithLinks(qa.answer, handleBranchTopic)}
+                    </p>
+
+                    {/* Extra suggested topics not already inline */}
+                    {qa.suggestedTopics &&
+                      qa.suggestedTopics.length > 0 &&
+                      (() => {
+                        const inlineTopics = new Set(
+                          (qa.answer.match(/\[\[([^\]]+)\]\]/g) || []).map((m) =>
+                            m.slice(2, -2).trim().toLowerCase()
+                          )
+                        );
+                        const extraTopics = qa.suggestedTopics.filter(
+                          (t) => !inlineTopics.has(t.toLowerCase())
+                        );
+                        if (extraTopics.length === 0) return null;
+                        return (
+                          <div className="mt-2 pt-2 border-t border-surface-2">
+                            <span className="text-2xs text-ink-3 block mb-1.5">
+                              explore further:
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {extraTopics.map((topic) => (
+                                <button
+                                  key={topic}
+                                  onClick={() => handleBranchTopic(topic)}
+                                  className={`inline-flex items-center gap-1 text-2xs bg-white border border-surface-2 px-2 text-ink-2 hover:border-ink-3 hover:text-ink-0 transition-colors ${
+                                    isMobile ? 'py-2 min-h-[36px]' : 'py-1'
+                                  }`}
+                                >
+                                  <Plus size={8} />
+                                  {topic}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                    {/* Answer actions */}
+                    {!qa.approved ? (
+                      <div className={`flex gap-2 mt-2 pt-2 border-t border-surface-2 ${isMobile ? 'gap-4' : ''}`}>
+                        <button
+                          onClick={() => approveAnswer(node.id, qa.id)}
+                          className={`flex items-center gap-1 text-2xs text-node-user hover:underline ${isMobile ? 'py-1 min-h-[36px]' : ''}`}
+                        >
+                          <Check size={10} /> keep
+                        </button>
+                        <button
+                          onClick={() => handleAddToMap(qa)}
+                          className={`flex items-center gap-1 text-2xs text-accent hover:underline ${isMobile ? 'py-1 min-h-[36px]' : ''}`}
+                        >
+                          <MapPin size={10} /> add to map
+                        </button>
+                        <button
+                          onClick={() => rejectAnswer(node.id, qa.id)}
+                          className={`flex items-center gap-1 text-2xs text-ink-3 hover:text-red-500 ${isMobile ? 'py-1 min-h-[36px]' : ''}`}
+                        >
+                          <Trash2 size={10} /> discard
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-2xs mt-2 pt-2 border-t border-surface-2">
+                        <span className="flex items-center gap-1 text-node-user">
+                          <Check size={10} /> saved
+                        </span>
+                        <button
+                          onClick={() => handleAddToMap(qa)}
+                          className={`flex items-center gap-1 text-accent hover:underline ml-auto ${isMobile ? 'py-1 min-h-[36px]' : ''}`}
+                        >
+                          <MapPin size={10} /> add to map
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+              </div>
+            ))}
 
-      {/* ── Input bar (always pinned at bottom) ──────────── */}
-      <div className="px-4 py-3 border-t border-surface-2 flex-shrink-0">
-        <form onSubmit={handleAsk} className="flex gap-2">
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="ask about this topic..."
-            disabled={isAsking}
-            className="flex-1 bg-surface-1 border border-surface-2 text-xs text-ink-1 px-3 py-2 placeholder:text-ink-3 focus:outline-none focus:border-ink-3 transition-colors"
-          />
-          <button
-            type="submit"
-            disabled={isAsking || !question.trim()}
-            className="bg-ink-0 text-white p-2 hover:bg-ink-1 disabled:opacity-30 transition-colors"
-          >
-            <Send size={12} />
-          </button>
-        </form>
+            {isAsking && (
+              <div className="flex justify-start">
+                <div className="bg-surface-1 text-ink-3 text-xs px-3 py-2 animate-pulse-subtle">
+                  thinking...
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  );
+
+  const panelInput = (
+    <div className="px-4 py-3 border-t border-surface-2 flex-shrink-0 bg-white">
+      <form onSubmit={handleAsk} className="flex gap-2">
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="ask about this topic..."
+          disabled={isAsking}
+          className={`flex-1 bg-surface-1 border border-surface-2 text-xs text-ink-1 px-3 placeholder:text-ink-3 focus:outline-none focus:border-ink-3 transition-colors ${
+            isMobile ? 'py-3 text-base' : 'py-2'
+          }`}
+          style={isMobile ? { fontSize: '16px' } : undefined}
+        />
+        <button
+          type="submit"
+          disabled={isAsking || !question.trim()}
+          className={`bg-ink-0 text-white hover:bg-ink-1 disabled:opacity-30 transition-colors ${
+            isMobile ? 'p-3 min-w-[44px] min-h-[44px]' : 'p-2'
+          }`}
+        >
+          <Send size={isMobile ? 16 : 12} />
+        </button>
+      </form>
+    </div>
+  );
+
+  // ── Mobile: Bottom Sheet ──────────────────────────────
+  if (isMobile) {
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/20 z-40"
+          onClick={() => setActiveNode(null)}
+        />
+
+        {/* Bottom Sheet */}
+        <div
+          className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-lg flex flex-col"
+          style={{
+            ...sheetStyle,
+            height: '92vh',
+          }}
+        >
+          {/* Drag handle */}
+          <div
+            className="flex justify-center py-2 cursor-grab active:cursor-grabbing touch-none"
+            {...handleProps}
+          >
+            <div className="w-10 h-1 bg-surface-3 rounded-full" />
+          </div>
+
+          {panelHeader}
+          {panelContent}
+          {panelInput}
+        </div>
+      </>
+    );
+  }
+
+  // ── Desktop: Side Panel ───────────────────────────────
+  return (
+    <div className="animate-slide-in absolute right-0 top-0 bottom-0 w-full max-w-sm bg-white border-l border-surface-2 flex flex-col z-50">
+      {panelHeader}
+      {panelContent}
+      {panelInput}
     </div>
   );
 }

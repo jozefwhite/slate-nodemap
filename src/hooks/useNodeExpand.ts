@@ -46,11 +46,14 @@ export function useNodeExpand() {
           return;
         }
 
+        // Pass existing nodes so the layout can avoid collisions
+        const currentNodesForLayout = useExploration.getState().nodes;
         const positions = computeChildPositions(
           node.position.x,
           node.position.y,
           childCount,
-          node.data.depth
+          node.data.depth,
+          currentNodesForLayout
         );
 
         const newNodes: GraphNode[] = [];

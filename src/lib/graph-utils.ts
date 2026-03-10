@@ -46,28 +46,45 @@ export function makeEdge(
 /**
  * Tree layout: children are placed in a column to the right of the parent,
  * spread vertically with enough spacing to avoid overlaps.
+ *
+ * Pass `existingNodes` so the algorithm can avoid collisions with nodes
+ * that are already on the canvas (e.g. children of other parents at the
+ * same depth).
  */
 export function computeChildPositions(
   parentX: number,
   parentY: number,
   childCount: number,
-  depth: number
+  depth: number,
+  existingNodes: GraphNode[] = []
 ): { x: number; y: number }[] {
   const xOffset = 320; // horizontal distance to the right
-  const ySpacing = 140; // vertical spacing between siblings
+  const ySpacing = 200; // vertical spacing between siblings (increased from 140)
   const positions: { x: number; y: number }[] = [];
+
+  const targetX = parentX + xOffset;
+
+  // Collect Y positions occupied by existing nodes near the target X
+  const occupied = existingNodes
+    .filter((n) => Math.abs(n.position.x - targetX) < 250)
+    .map((n) => n.position.y);
 
   // Center children vertically around parent
   const totalHeight = (childCount - 1) * ySpacing;
   const startY = parentY - totalHeight / 2;
 
   for (let i = 0; i < childCount; i++) {
-    // Small jitter to avoid perfectly rigid grid
-    const jitterY = (Math.random() - 0.5) * 20;
-    positions.push({
-      x: parentX + xOffset,
-      y: startY + i * ySpacing + jitterY,
-    });
+    let y = startY + i * ySpacing;
+
+    // Resolve collisions: nudge down until clear of existing nodes
+    let attempts = 0;
+    while (attempts < 30 && occupied.some((oy) => Math.abs(oy - y) < ySpacing * 0.6)) {
+      y += ySpacing * 0.75;
+      attempts++;
+    }
+
+    positions.push({ x: targetX, y });
+    occupied.push(y); // Mark as occupied for subsequent siblings
   }
 
   return positions;

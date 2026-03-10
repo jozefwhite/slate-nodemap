@@ -270,7 +270,8 @@ export default function NodePanel() {
       node.position.x,
       node.position.y,
       currentChildCount + 1,
-      (data.depth || 0) + 1
+      (data.depth || 0) + 1,
+      nodes
     );
     const pos = positions[positions.length - 1];
 
@@ -314,7 +315,8 @@ export default function NodePanel() {
       node.position.x,
       node.position.y,
       currentChildCount + 1,
-      (data.depth || 0) + 1
+      (data.depth || 0) + 1,
+      nodes
     );
     const pos = positions[positions.length - 1];
 

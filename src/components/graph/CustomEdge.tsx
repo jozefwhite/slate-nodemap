@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { EdgeProps, getBezierPath, EdgeLabelRenderer } from 'reactflow';
+import { EdgeProps, getSmoothStepPath, EdgeLabelRenderer } from 'reactflow';
 
 function CustomEdgeComponent({
   id,
@@ -13,13 +13,14 @@ function CustomEdgeComponent({
   targetPosition,
   label,
 }: EdgeProps) {
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
     targetY,
     sourcePosition,
     targetPosition,
+    borderRadius: 16,
   });
 
   return (

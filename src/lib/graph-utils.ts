@@ -44,12 +44,9 @@ export function makeEdge(
 }
 
 /**
- * Tree layout: children are placed in a column to the right of the parent,
- * spread vertically with enough spacing to avoid overlaps.
- *
- * Pass `existingNodes` so the algorithm can avoid collisions with nodes
- * that are already on the canvas (e.g. children of other parents at the
- * same depth).
+ * Organic tree layout: children branch to the right of the parent
+ * with slight natural variation so the graph feels grown, not gridded.
+ * Collision-aware — checks against existing canvas nodes.
  */
 export function computeChildPositions(
   parentX: number,
@@ -58,33 +55,43 @@ export function computeChildPositions(
   depth: number,
   existingNodes: GraphNode[] = []
 ): { x: number; y: number }[] {
-  const xOffset = 320; // horizontal distance to the right
-  const ySpacing = 200; // vertical spacing between siblings (increased from 140)
+  const baseXOffset = 280;
+  const ySpacing = 110; // tight but enough for node height
   const positions: { x: number; y: number }[] = [];
 
-  const targetX = parentX + xOffset;
+  // Approximate node dimensions for overlap detection
+  const nodeW = 180;
+  const nodeH = 50;
 
-  // Collect Y positions occupied by existing nodes near the target X
-  const occupied = existingNodes
-    .filter((n) => Math.abs(n.position.x - targetX) < 250)
-    .map((n) => n.position.y);
-
-  // Center children vertically around parent
+  // Center children around parent Y
   const totalHeight = (childCount - 1) * ySpacing;
   const startY = parentY - totalHeight / 2;
 
-  for (let i = 0; i < childCount; i++) {
-    let y = startY + i * ySpacing;
+  // Track occupied rectangles (existing + siblings placed so far)
+  const occupied = existingNodes
+    .filter((n) => Math.abs(n.position.x - (parentX + baseXOffset)) < nodeW + 60)
+    .map((n) => ({ x: n.position.x, y: n.position.y }));
 
-    // Resolve collisions: nudge down until clear of existing nodes
+  for (let i = 0; i < childCount; i++) {
+    // Small organic variation so it doesn't feel gridded
+    const xJitter = (Math.random() - 0.5) * 50; // ±25px
+    const yJitter = (Math.random() - 0.5) * 24; // ±12px
+
+    let x = parentX + baseXOffset + xJitter;
+    let y = startY + i * ySpacing + yJitter;
+
+    // Nudge down if overlapping another node's bounding box
     let attempts = 0;
-    while (attempts < 30 && occupied.some((oy) => Math.abs(oy - y) < ySpacing * 0.6)) {
-      y += ySpacing * 0.75;
+    while (
+      attempts < 20 &&
+      occupied.some((o) => Math.abs(o.x - x) < nodeW && Math.abs(o.y - y) < nodeH)
+    ) {
+      y += nodeH + 10;
       attempts++;
     }
 
-    positions.push({ x: targetX, y });
-    occupied.push(y); // Mark as occupied for subsequent siblings
+    positions.push({ x, y });
+    occupied.push({ x, y });
   }
 
   return positions;

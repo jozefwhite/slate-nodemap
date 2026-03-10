@@ -151,39 +151,71 @@ export default function NodePanel() {
     }
   }, [node?.data.conversations.length]);
 
-  // Auto-fetch Wikipedia summary for nodes that don't have one yet
+  // Auto-fetch summary: try Wikipedia first, fall back to Claude for niche topics
   useEffect(() => {
     if (!node) return;
     if (node.data.summary) return;
     if (fetchedRef.current.has(node.id)) return;
     fetchedRef.current.add(node.id);
 
+    const updateNodeSummary = (
+      nodeId: string,
+      summary: string,
+      url?: string,
+      imageUrl?: string
+    ) => {
+      const { nodes: currentNodes } = useExploration.getState();
+      const targetNode = currentNodes.find((n) => n.id === nodeId);
+      if (targetNode && !targetNode.data.summary) {
+        useExploration.setState({
+          nodes: currentNodes.map((n) =>
+            n.id === nodeId
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    summary,
+                    url: url || n.data.url,
+                    imageUrl: n.data.imageUrl || imageUrl,
+                  },
+                }
+              : n
+          ),
+        });
+      }
+    };
+
     const fetchSummary = async () => {
       setIsFetchingSummary(true);
       try {
+        // 1. Try Wikipedia first
         const res = await fetch(`/api/wikipedia?title=${encodeURIComponent(node.data.label)}`);
-        const data = await res.json();
-        if (data.summary?.extract || data.intro) {
-          const summaryText = data.intro || data.summary?.extract || '';
-          const { nodes: currentNodes } = useExploration.getState();
-          const targetNode = currentNodes.find((n) => n.id === node.id);
-          if (targetNode && !targetNode.data.summary) {
-            useExploration.setState({
-              nodes: currentNodes.map((n) =>
-                n.id === node.id
-                  ? {
-                      ...n,
-                      data: {
-                        ...n.data,
-                        summary: summaryText,
-                        url: data.summary?.content_urls?.desktop?.page,
-                        imageUrl: n.data.imageUrl || data.summary?.thumbnail?.source,
-                      },
-                    }
-                  : n
-              ),
-            });
-          }
+        const wikiData = await res.json();
+
+        if (wikiData.summary?.extract || wikiData.intro) {
+          const summaryText = wikiData.intro || wikiData.summary?.extract || '';
+          updateNodeSummary(
+            node.id,
+            summaryText,
+            wikiData.summary?.content_urls?.desktop?.page,
+            wikiData.summary?.thumbnail?.source
+          );
+          return;
+        }
+
+        // 2. Wikipedia has nothing — fall back to Claude
+        const seedTerm = useExploration.getState().seedTerm;
+        const descRes = await fetch('/api/describe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: node.data.label,
+            context: seedTerm || undefined,
+          }),
+        });
+        const descData = await descRes.json();
+        if (descData.description) {
+          updateNodeSummary(node.id, descData.description);
         }
       } catch {
         // Silent fail

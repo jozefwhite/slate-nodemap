@@ -35,7 +35,7 @@ Respond in this exact JSON format (no other text):
   "relatedConcepts": ["Wikipedia Article Title 1", "Wikipedia Article Title 2", "Wikipedia Article Title 3"]
 }
 
-Tags should bridge the capture and the journey. Related concepts should be real Wikipedia article titles that create meaningful links between the capture and existing nodes. Return 3-5 tags and 2-4 related concepts.`;
+Tags should bridge the capture and the journey. Related concepts should be specific, explorable topics — these can be well-known subjects with Wikipedia pages OR niche topics (specific brands, people, techniques, etc.) that may not have a Wikipedia page but are worth exploring. Prioritize specificity and relevance over whether a Wikipedia page exists. Return 3-5 tags and 2-4 related concepts.`;
   }
 
   return `You are a classification engine for Nodemap, a knowledge exploration tool. Analyze the content provided and classify it.
@@ -50,7 +50,7 @@ Respond in this exact JSON format (no other text):
   "relatedConcepts": ["Wikipedia Article Title 1", "Wikipedia Article Title 2", "Wikipedia Article Title 3"]
 }
 
-Tags should be conceptual categories. Related concepts should be real Wikipedia article titles. Return 3-5 tags and 2-4 related concepts.`;
+Tags should be conceptual categories. Related concepts should be specific, explorable topics — well-known subjects with Wikipedia pages OR niche topics (brands, people, techniques) worth exploring. Prioritize specificity and relevance. Return 3-5 tags and 2-4 related concepts.`;
 }
 
 export async function POST(request: NextRequest) {

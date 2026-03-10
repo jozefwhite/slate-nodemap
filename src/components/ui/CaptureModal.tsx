@@ -110,12 +110,13 @@ export default function CaptureModal({ onClose }: CaptureModalProps) {
 
     const captureEdge = makeEdge(anchorNode.id, captureNode.id, 'captured');
 
-    // Create related concept nodes
+    // Create related concept nodes with collision avoidance
     const relatedPositions = computeChildPositions(
       captureNode.position.x,
       captureNode.position.y,
       Math.min(result.relatedConcepts.length, 4),
       captureNode.data.depth,
+      nodes,
     );
 
     const relatedNodes = result.relatedConcepts.slice(0, 4).map((concept, i) =>

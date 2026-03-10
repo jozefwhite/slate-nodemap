@@ -8,7 +8,7 @@ import { useExploration } from '@/hooks/useExploration';
 import { makeNode, makeEdge, computeChildPositions } from '@/lib/graph-utils';
 import { ClassifyResponse } from '@/lib/types';
 
-type Step = 'capture' | 'processing' | 'review' | 'destination';
+type Step = 'capture' | 'processing' | 'review';
 type Mode = 'photo' | 'text';
 
 export default function CapturePage() {
@@ -23,7 +23,8 @@ export default function CapturePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const { reset, setSeedTerm, addNodes } = useExploration();
+  const { nodes, seedTerm, reset, setSeedTerm, addNodes } = useExploration();
+  const hasJourney = nodes.length > 0;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -47,7 +48,7 @@ export default function CapturePage() {
 
     try {
       const body: Record<string, unknown> = {
-        mode: 'classify',
+        mode: hasJourney ? 'analyze' : 'classify',
         userNotes: userNotes || undefined,
       };
 
@@ -55,6 +56,17 @@ export default function CapturePage() {
         body.imageBase64 = imageBase64;
       } else if (mode === 'text' && textContent) {
         body.text = textContent;
+      }
+
+      // Pass journey context if we have an active exploration
+      if (hasJourney) {
+        body.journeyContext = {
+          seedTerm,
+          recentNodes: nodes.slice(-10).map((n) => ({
+            label: n.data.label,
+            summary: n.data.summary,
+          })),
+        };
       }
 
       const res = await fetch('/api/classify', {
@@ -69,6 +81,54 @@ export default function CapturePage() {
     } catch {
       setStep('capture');
     }
+  };
+
+  const addToJourney = () => {
+    if (!result) return;
+
+    // Find anchor node (last node in the graph)
+    const anchorNode = nodes[nodes.length - 1];
+    if (!anchorNode) return;
+
+    const captureLabel = (userNotes || result.description).slice(0, 50) || 'Capture';
+    const captureNode = makeNode(
+      captureLabel,
+      imageBase64 ? 'image' : 'user',
+      {
+        x: anchorNode.position.x + 300,
+        y: anchorNode.position.y,
+      },
+      {
+        summary: [result.description, result.analysis].filter(Boolean).join(' '),
+        tags: result.tags,
+        imageUrl: imagePreview || undefined,
+        depth: anchorNode.data.depth + 1,
+      }
+    );
+
+    const captureEdge = makeEdge(anchorNode.id, captureNode.id, 'captured');
+
+    // Create related concept nodes with collision avoidance
+    const relatedPositions = computeChildPositions(
+      captureNode.position.x,
+      captureNode.position.y,
+      Math.min(result.relatedConcepts.length, 4),
+      captureNode.data.depth,
+      nodes,
+    );
+
+    const relatedNodes = result.relatedConcepts.slice(0, 4).map((concept, i) =>
+      makeNode(concept, 'wikipedia', relatedPositions[i], {
+        depth: captureNode.data.depth + 1,
+      })
+    );
+
+    const relatedEdges = relatedNodes.map((n) =>
+      makeEdge(captureNode.id, n.id, 'related')
+    );
+
+    addNodes([captureNode, ...relatedNodes], [captureEdge, ...relatedEdges]);
+    router.push('/explore');
   };
 
   const startNewJourney = () => {
@@ -213,12 +273,18 @@ export default function CapturePage() {
                 className="w-full h-20 bg-surface-1 border border-surface-2 text-sm text-ink-1 p-4 placeholder:text-ink-3 focus:outline-none focus:border-ink-3 resize-none"
               />
 
+              {hasJourney && (
+                <p className="text-2xs text-ink-3 text-center">
+                  will analyze in context of your &lsquo;{seedTerm}&rsquo; journey
+                </p>
+              )}
+
               <button
                 onClick={handleSubmit}
                 disabled={mode === 'photo' ? !imageBase64 : !textContent.trim()}
                 className="w-full py-3 bg-ink-0 text-white text-sm hover:bg-ink-1 disabled:opacity-30 transition-colors"
               >
-                classify
+                {hasJourney ? 'analyze in context' : 'classify'}
               </button>
             </div>
           )}
@@ -230,7 +296,9 @@ export default function CapturePage() {
                 <img src={imagePreview} alt="Processing" className="w-40 h-40 object-cover opacity-40" />
               )}
               <Loader2 size={24} className="animate-spin text-ink-3" />
-              <p className="text-xs text-ink-3">classifying your capture...</p>
+              <p className="text-xs text-ink-3">
+                {hasJourney ? 'analyzing in the context of your journey...' : 'classifying your capture...'}
+              </p>
             </div>
           )}
 
@@ -243,6 +311,9 @@ export default function CapturePage() {
 
               <div>
                 <p className="text-sm text-ink-1 leading-relaxed">{result.description}</p>
+                {result.analysis && (
+                  <p className="text-xs text-ink-2 leading-relaxed mt-1.5">{result.analysis}</p>
+                )}
               </div>
 
               {result.tags.length > 0 && (
@@ -279,9 +350,21 @@ export default function CapturePage() {
               )}
 
               <div className="space-y-2 pt-2">
+                {hasJourney && (
+                  <button
+                    onClick={addToJourney}
+                    className="w-full py-3 bg-ink-0 text-white text-sm hover:bg-ink-1 transition-colors"
+                  >
+                    add to current journey
+                  </button>
+                )}
                 <button
                   onClick={startNewJourney}
-                  className="w-full py-3 bg-ink-0 text-white text-sm hover:bg-ink-1 transition-colors"
+                  className={`w-full py-3 text-sm transition-colors ${
+                    hasJourney
+                      ? 'border border-surface-2 text-ink-2 hover:bg-surface-1'
+                      : 'bg-ink-0 text-white hover:bg-ink-1'
+                  }`}
                 >
                   start new journey
                 </button>

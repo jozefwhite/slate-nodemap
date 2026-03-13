@@ -122,3 +122,34 @@ export interface ClassifyResponse {
   tags: string[];
   relatedConcepts: string[];
 }
+
+// Media types — panel-only, not stored in node data
+export interface YouTubeResult {
+  videoId: string;
+  title: string;
+  description: string;
+  thumbnailUrl: string;
+}
+
+export interface BookResult {
+  title: string;
+  authors: string[];
+  coverUrl: string | null;
+  firstPublishYear: number | null;
+  key: string;
+}
+
+export interface PodcastResult {
+  title: string;
+  description: string;
+  imageUrl: string;
+  url: string;
+}
+
+export interface MusicResult {
+  trackName: string;
+  artistName: string;
+  artworkUrl: string;
+  previewUrl: string | null;
+  trackViewUrl: string;
+}

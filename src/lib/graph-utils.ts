@@ -62,7 +62,7 @@ export function computeChildPositions(
 
   // Approximate node dimensions for overlap detection
   const nodeW = 180;
-  const nodeH = 50;
+  const nodeH = 90;
 
   // Center children around parent Y
   const totalHeight = (childCount - 1) * ySpacing;

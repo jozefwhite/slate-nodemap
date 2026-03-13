@@ -40,6 +40,30 @@ async function prefetchSummaries(nodesToFetch: GraphNode[]) {
     } catch {
       // Silent fail — summary will load when panel opens
     }
+
+    // YouTube thumbnail fallback — if Wikipedia had no image, try YouTube
+    const { nodes: latestNodes } = useExploration.getState();
+    const latestTarget = latestNodes.find((n) => n.id === nodesToFetch[i].id);
+    if (latestTarget && !latestTarget.data.imageUrl) {
+      try {
+        const ytRes = await fetch(
+          `/api/youtube?q=${encodeURIComponent(nodesToFetch[i].data.label)}&maxResults=1`
+        );
+        const ytData = await ytRes.json();
+        if (ytData.results?.[0]?.thumbnailUrl) {
+          const { nodes: nowNodes } = useExploration.getState();
+          useExploration.setState({
+            nodes: nowNodes.map((n) =>
+              n.id === nodesToFetch[i].id && !n.data.imageUrl
+                ? { ...n, data: { ...n.data, imageUrl: ytData.results[0].thumbnailUrl } }
+                : n
+            ),
+          });
+        }
+      } catch {
+        // YouTube fallback is optional
+      }
+    }
   }
 }
 

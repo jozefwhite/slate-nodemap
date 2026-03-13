@@ -18,6 +18,7 @@ import { useExploration } from '@/hooks/useExploration';
 import { useNodeExpand } from '@/hooks/useNodeExpand';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useBottomSheet } from '@/hooks/useBottomSheet';
+import { useNodeMedia } from '@/hooks/useNodeMedia';
 import { buildAskContext } from '@/lib/context-builder';
 import { makeNode, makeEdge, computeChildPositions } from '@/lib/graph-utils';
 import { NodeQA, NodeSource } from '@/lib/types';
@@ -65,6 +66,36 @@ function SectionHeader({
       <span>{label}</span>
       {badge && <span className="font-normal ml-0.5 normal-case">{badge}</span>}
     </button>
+  );
+}
+
+// Media sub-section with label and loading state
+function MediaSubsection({
+  title,
+  loading: isLoading,
+  children,
+}: {
+  title: string;
+  loading: boolean;
+  children: ReactNode;
+}) {
+  const count = Array.isArray(children) ? children.filter(Boolean).length : (children ? 1 : 0);
+  if (!isLoading && count === 0) return null;
+
+  return (
+    <div>
+      <span className="text-2xs font-mono uppercase tracking-wider text-ink-3 block mb-1.5">
+        {title}
+      </span>
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-ink-3">
+          <Loader2 size={12} className="animate-spin" />
+          loading...
+        </div>
+      ) : (
+        <div className="space-y-1">{children}</div>
+      )}
+    </div>
   );
 }
 
@@ -123,6 +154,8 @@ export default function NodePanel() {
   } = useExploration();
   const { expand } = useNodeExpand();
   const isMobile = useIsMobile();
+  const node = nodes.find((n) => n.id === activeNodeId);
+  const media = useNodeMedia(node ? node.data.label : null);
 
   const { sheetStyle, handleProps, snapTo, currentSnap } = useBottomSheet({
     onClose: () => setActiveNode(null),
@@ -137,18 +170,18 @@ export default function NodePanel() {
   const [aboutOpen, setAboutOpen] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(true);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [qaOpen, setQaOpen] = useState(true);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<Set<string>>(new Set());
-
-  const node = nodes.find((n) => n.id === activeNodeId);
 
   // Reset section states when switching nodes
   useEffect(() => {
     setDescExpanded(false);
     setAboutOpen(true);
     setConnectionsOpen(true);
+    setMediaOpen(false);
     setQaOpen(true);
   }, [activeNodeId]);
 
@@ -488,6 +521,103 @@ export default function NodePanel() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Media section ──────────────────────────────── */}
+      <div className="border-b border-surface-2">
+        <SectionHeader label="media" open={mediaOpen} onToggle={() => setMediaOpen(!mediaOpen)} mobile={isMobile} />
+
+        {mediaOpen && (
+          <div className="px-4 pb-3 space-y-4 -mt-0.5">
+            {/* YouTube */}
+            <MediaSubsection title="videos" loading={media.youtube.loading}>
+              {media.youtube.results.map((video) => (
+                <a
+                  key={video.videoId}
+                  href={`https://youtube.com/watch?v=${video.videoId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex gap-2 hover:bg-surface-0 p-1 transition-colors ${isMobile ? 'min-h-[44px]' : ''}`}
+                >
+                  {video.thumbnailUrl && (
+                    <img src={video.thumbnailUrl} alt="" className="w-24 h-[54px] object-cover flex-shrink-0 bg-surface-1" />
+                  )}
+                  <span className="text-xs text-ink-2 line-clamp-2 leading-tight">{video.title}</span>
+                </a>
+              ))}
+            </MediaSubsection>
+
+            {/* Books */}
+            <MediaSubsection title="books" loading={media.books.loading}>
+              {media.books.results.map((book) => (
+                <a
+                  key={book.key}
+                  href={`https://openlibrary.org${book.key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex gap-2 hover:bg-surface-0 p-1 transition-colors ${isMobile ? 'min-h-[44px]' : ''}`}
+                >
+                  {book.coverUrl && (
+                    <img src={book.coverUrl} alt="" className="w-10 h-14 object-cover flex-shrink-0 bg-surface-1" />
+                  )}
+                  <div className="min-w-0">
+                    <span className="text-xs text-ink-2 line-clamp-1 block">{book.title}</span>
+                    <span className="text-2xs text-ink-3 block">{book.authors.join(', ')}</span>
+                    {book.firstPublishYear && (
+                      <span className="text-2xs text-ink-3">{book.firstPublishYear}</span>
+                    )}
+                  </div>
+                </a>
+              ))}
+            </MediaSubsection>
+
+            {/* Podcasts */}
+            <MediaSubsection title="podcasts" loading={media.podcasts.loading}>
+              {media.podcasts.results.map((pod, i) => (
+                <a
+                  key={i}
+                  href={pod.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex gap-2 hover:bg-surface-0 p-1 transition-colors ${isMobile ? 'min-h-[44px]' : ''}`}
+                >
+                  {pod.imageUrl && (
+                    <img src={pod.imageUrl} alt="" className="w-10 h-10 object-cover flex-shrink-0 bg-surface-1" />
+                  )}
+                  <div className="min-w-0">
+                    <span className="text-xs text-ink-2 line-clamp-1 block">{pod.title}</span>
+                    <span className="text-2xs text-ink-3 line-clamp-1 block">{pod.description}</span>
+                  </div>
+                </a>
+              ))}
+            </MediaSubsection>
+
+            {/* Music */}
+            <MediaSubsection title="music" loading={media.music.loading}>
+              {media.music.results.map((track, i) => (
+                <div key={i} className={`flex gap-2 items-center p-1 ${isMobile ? 'min-h-[44px]' : ''}`}>
+                  {track.artworkUrl && (
+                    <img src={track.artworkUrl} alt="" className="w-10 h-10 flex-shrink-0 bg-surface-1" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <a
+                      href={track.trackViewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-ink-2 line-clamp-1 block hover:text-accent"
+                    >
+                      {track.trackName}
+                    </a>
+                    <span className="text-2xs text-ink-3 block">{track.artistName}</span>
+                  </div>
+                  {track.previewUrl && (
+                    <audio src={track.previewUrl} controls className="h-6 w-20 flex-shrink-0" />
+                  )}
+                </div>
+              ))}
+            </MediaSubsection>
           </div>
         )}
       </div>

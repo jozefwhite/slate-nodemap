@@ -14,16 +14,19 @@ import {
   ChevronDown,
   ChevronRight,
   Link2,
+  Play,
+  Pause,
 } from 'lucide-react';
 import { useExploration } from '@/hooks/useExploration';
 import { useNodeExpand } from '@/hooks/useNodeExpand';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useBottomSheet } from '@/hooks/useBottomSheet';
 import { useNodeMedia } from '@/hooks/useNodeMedia';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { buildAskContext } from '@/lib/context-builder';
 import { makeNode, makeEdge, computeChildPositions } from '@/lib/graph-utils';
 import { useMapPersistence } from '@/hooks/useMapPersistence';
-import { NodeQA, NodeSource, SavedMap } from '@/lib/types';
+import { NodeQA, NodeSource, SavedMap, MusicResult } from '@/lib/types';
 
 const sourceLabels: Record<NodeSource, string> = {
   wikipedia: 'WIKIPEDIA',
@@ -96,6 +99,52 @@ function MediaSubsection({
         </div>
       ) : (
         <div className="space-y-1">{children}</div>
+      )}
+    </div>
+  );
+}
+
+// Music track row with play button that triggers the persistent mini player
+function MusicTrackRow({ track, isMobile }: { track: MusicResult; isMobile: boolean }) {
+  const { track: currentTrack, isPlaying, play, pause, resume } = useAudioPlayer();
+  const isThisTrack = currentTrack?.previewUrl === track.previewUrl && track.previewUrl;
+
+  const handlePlay = () => {
+    if (isThisTrack && isPlaying) {
+      pause();
+    } else if (isThisTrack) {
+      resume();
+    } else {
+      play(track);
+    }
+  };
+
+  return (
+    <div className={`flex gap-2 items-center p-1 ${isMobile ? 'min-h-[44px]' : ''}`}>
+      {track.artworkUrl && (
+        <img src={track.artworkUrl} alt="" className="w-10 h-10 flex-shrink-0 bg-surface-1" />
+      )}
+      <div className="min-w-0 flex-1">
+        <a
+          href={track.trackViewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-ink-2 line-clamp-1 block hover:text-accent"
+        >
+          {track.trackName}
+        </a>
+        <span className="text-2xs text-ink-3 block">{track.artistName}</span>
+      </div>
+      {track.previewUrl && (
+        <button
+          onClick={handlePlay}
+          className={`flex-shrink-0 text-ink-3 hover:text-ink-0 transition-colors ${
+            isThisTrack && isPlaying ? 'text-accent' : ''
+          } ${isMobile ? 'p-2 min-w-[44px] min-h-[44px] flex items-center justify-center' : 'p-1.5'}`}
+          title={isThisTrack && isPlaying ? 'Pause' : 'Play preview'}
+        >
+          {isThisTrack && isPlaying ? <Pause size={14} /> : <Play size={14} />}
+        </button>
       )}
     </div>
   );
@@ -605,25 +654,7 @@ export default function NodePanel() {
             {/* Music */}
             <MediaSubsection title="music" loading={media.music.loading}>
               {media.music.results.map((track, i) => (
-                <div key={i} className={`flex gap-2 items-center p-1 ${isMobile ? 'min-h-[44px]' : ''}`}>
-                  {track.artworkUrl && (
-                    <img src={track.artworkUrl} alt="" className="w-10 h-10 flex-shrink-0 bg-surface-1" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <a
-                      href={track.trackViewUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-ink-2 line-clamp-1 block hover:text-accent"
-                    >
-                      {track.trackName}
-                    </a>
-                    <span className="text-2xs text-ink-3 block">{track.artistName}</span>
-                  </div>
-                  {track.previewUrl && (
-                    <audio src={track.previewUrl} controls className="h-6 w-20 flex-shrink-0" />
-                  )}
-                </div>
+                <MusicTrackRow key={i} track={track} isMobile={isMobile} />
               ))}
             </MediaSubsection>
           </div>

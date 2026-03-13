@@ -17,6 +17,7 @@ import MoodboardGrid from '@/components/layout/MoodboardGrid';
 import CaptureModal from '@/components/ui/CaptureModal';
 import AuthModal from '@/components/ui/AuthModal';
 import Toast from '@/components/ui/Toast';
+import MiniPlayer from '@/components/ui/MiniPlayer';
 import { createClient } from '@/lib/supabase/client';
 
 const Canvas = dynamic(() => import('@/components/graph/Canvas'), { ssr: false });
@@ -224,6 +225,9 @@ export default function ExplorePage() {
 
       {/* Path breadcrumb — hidden on mobile */}
       {!isMobile && <PathBreadcrumb />}
+
+      {/* Persistent mini player */}
+      <MiniPlayer />
 
       {/* Stats bar */}
       {!isMobile ? (

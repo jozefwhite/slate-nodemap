@@ -23,6 +23,8 @@ export interface ConceptNodeData {
   conversations: NodeQA[];
   enrichedContent?: string;
   summarySource?: 'wikipedia' | 'ai';
+  linkedMapId?: string;
+  linkedMapTitle?: string;
 }
 
 export interface GraphNode {

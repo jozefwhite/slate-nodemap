@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Plus, Save, FilePlus } from 'lucide-react';
+import { Plus, Save, FilePlus, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useExploration } from '@/hooks/useExploration';
 import { useMapPersistence } from '@/hooks/useMapPersistence';
+import { GraphNode } from '@/lib/types';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import Header from '@/components/layout/Header';
 import SearchInput from '@/components/ui/SearchInput';
@@ -14,7 +15,9 @@ import PathBreadcrumb from '@/components/ui/PathBreadcrumb';
 import NodePanel from '@/components/ui/NodePanel';
 import MoodboardGrid from '@/components/layout/MoodboardGrid';
 import CaptureModal from '@/components/ui/CaptureModal';
+import AuthModal from '@/components/ui/AuthModal';
 import Toast from '@/components/ui/Toast';
+import { createClient } from '@/lib/supabase/client';
 
 const Canvas = dynamic(() => import('@/components/graph/Canvas'), { ssr: false });
 
@@ -66,25 +69,43 @@ function LoadingScreen({ seedTerm }: { seedTerm: string }) {
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { nodes, isLoading, seedTerm, activeNodeId, viewMode, reset } = useExploration();
+  const { nodes, isLoading, seedTerm, activeNodeId, viewMode, reset, mapStack, popMap, loadMap } = useExploration();
   const [showCapture, setShowCapture] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const { saveMap, saving } = useMapPersistence();
   const isMobile = useIsMobile();
+  const supabase = createClient();
 
   const answerCount = nodes.reduce(
-    (sum, n) => sum + n.data.conversations.filter((c) => c.approved).length,
+    (sum: number, n: GraphNode) => sum + n.data.conversations.filter((c) => c.approved).length,
     0
   );
 
-  const handleSave = useCallback(async () => {
+  const doSave = useCallback(async () => {
     const result = await saveMap();
     if (result) {
       setToast({ message: 'map saved', type: 'success' });
     } else {
-      setToast({ message: 'sign in to save maps', type: 'error' });
+      setToast({ message: 'save failed', type: 'error' });
     }
   }, [saveMap]);
+
+  const handleSave = useCallback(async () => {
+    // Check auth first — show modal if not signed in
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      doSave();
+    } else {
+      setShowAuth(true);
+    }
+  }, [supabase, doSave]);
+
+  const handleAuthSuccess = useCallback(() => {
+    setShowAuth(false);
+    // Auto-save after successful auth
+    doSave();
+  }, [doSave]);
 
   const handleNewMap = useCallback(() => {
     if (nodes.length > 0) {
@@ -97,6 +118,26 @@ export default function ExplorePage() {
     router.push('/');
   }, [nodes.length, reset, router]);
 
+  const handleBackMap = useCallback(async () => {
+    const prev = popMap();
+    if (!prev || prev.mapId === 'unsaved') return;
+
+    // Load the previous map from Supabase
+    try {
+      const { data, error } = await supabase
+        .from('maps')
+        .select('*')
+        .eq('id', prev.mapId)
+        .single();
+
+      if (!error && data) {
+        loadMap(data);
+      }
+    } catch {
+      setToast({ message: 'failed to load previous map', type: 'error' });
+    }
+  }, [popMap, loadMap, supabase]);
+
   // Show loading screen when search is in progress and no nodes exist yet
   const showLoading = isLoading && nodes.length === 0 && seedTerm;
 
@@ -107,6 +148,16 @@ export default function ExplorePage() {
       {/* Toolbar — hidden on mobile */}
       {!isMobile && (
         <div className="h-10 border-b border-surface-2 bg-white flex items-center px-4 gap-2">
+          {mapStack.length > 0 && (
+            <button
+              onClick={handleBackMap}
+              className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink-0 transition-colors px-2 py-1 border border-surface-2 hover:border-ink-3"
+              title="Back to previous map"
+            >
+              <ArrowLeft size={12} />
+              back
+            </button>
+          )}
           <SearchInput compact onSearch={() => {}} />
           <ViewToggle />
           <button
@@ -210,6 +261,9 @@ export default function ExplorePage() {
 
       {/* Capture Modal */}
       {showCapture && <CaptureModal onClose={() => setShowCapture(false)} />}
+
+      {/* Auth Modal */}
+      {showAuth && <AuthModal onSuccess={handleAuthSuccess} onClose={() => setShowAuth(false)} />}
 
       {/* Toast */}
       {toast && (

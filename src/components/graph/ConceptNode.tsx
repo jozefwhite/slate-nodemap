@@ -65,6 +65,9 @@ function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeData>) {
         <span className={`${textClass} ${isRoot ? 'font-semibold' : 'font-medium'} text-ink-0 leading-tight break-words flex-1`}>
           {data.label}
         </span>
+        {data.linkedMapId && (
+          <div className="w-2 h-2 bg-accent flex-shrink-0 mt-1 rounded-sm" title={`Portal → ${data.linkedMapTitle || 'map'}`} />
+        )}
         {approvedCount > 0 && (
           <div className="w-1.5 h-1.5 bg-node-user flex-shrink-0 mt-1 rounded-full" />
         )}

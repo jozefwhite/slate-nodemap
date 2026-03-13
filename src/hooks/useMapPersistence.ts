@@ -8,7 +8,7 @@ import { SavedMap } from '@/lib/types';
 export function useMapPersistence() {
   const [maps, setMaps] = useState<SavedMap[]>([]);
   const [saving, setSaving] = useState(false);
-  const { nodes, edges, path, viewMode, seedTerm, reset, loadMap: loadMapToStore } = useExploration();
+  const { nodes, edges, path, viewMode, seedTerm, currentMapId, setCurrentMapId, reset, loadMap: loadMapToStore } = useExploration();
 
   const supabase = createClient();
 
@@ -19,6 +19,21 @@ export function useMapPersistence() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return null;
 
+        // If we're editing an existing map, update it
+        if (currentMapId) {
+          const { error } = await supabase
+            .from('maps')
+            .update({ nodes, edges, path, view_mode: viewMode })
+            .eq('id', currentMapId);
+
+          if (error) {
+            console.error('Update error:', error);
+            return null;
+          }
+          return { id: currentMapId } as SavedMap;
+        }
+
+        // Otherwise, create a new map
         const { data, error } = await supabase
           .from('maps')
           .insert({
@@ -37,12 +52,15 @@ export function useMapPersistence() {
           console.error('Save error:', error);
           return null;
         }
+
+        // Track the new map ID so subsequent saves update instead of insert
+        setCurrentMapId(data.id);
         return data as SavedMap;
       } finally {
         setSaving(false);
       }
     },
-    [supabase, nodes, edges, path, viewMode, seedTerm]
+    [supabase, nodes, edges, path, viewMode, seedTerm, currentMapId, setCurrentMapId]
   );
 
   const updateMap = useCallback(

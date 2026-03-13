@@ -13,6 +13,7 @@ import {
   MapPin,
   ChevronDown,
   ChevronRight,
+  Link2,
 } from 'lucide-react';
 import { useExploration } from '@/hooks/useExploration';
 import { useNodeExpand } from '@/hooks/useNodeExpand';
@@ -21,7 +22,8 @@ import { useBottomSheet } from '@/hooks/useBottomSheet';
 import { useNodeMedia } from '@/hooks/useNodeMedia';
 import { buildAskContext } from '@/lib/context-builder';
 import { makeNode, makeEdge, computeChildPositions } from '@/lib/graph-utils';
-import { NodeQA, NodeSource } from '@/lib/types';
+import { useMapPersistence } from '@/hooks/useMapPersistence';
+import { NodeQA, NodeSource, SavedMap } from '@/lib/types';
 
 const sourceLabels: Record<NodeSource, string> = {
   wikipedia: 'WIKIPEDIA',
@@ -151,8 +153,10 @@ export default function NodePanel() {
     approveAnswer,
     rejectAnswer,
     removeNode,
+    setLinkedMap,
   } = useExploration();
   const { expand } = useNodeExpand();
+  const { maps: savedMaps, fetchMaps: fetchSavedMaps } = useMapPersistence();
   const isMobile = useIsMobile();
   const node = nodes.find((n) => n.id === activeNodeId);
   const media = useNodeMedia(node ? node.data.label : null);
@@ -172,6 +176,8 @@ export default function NodePanel() {
   const [connectionsOpen, setConnectionsOpen] = useState(true);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [qaOpen, setQaOpen] = useState(true);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [mapPickerLoaded, setMapPickerLoaded] = useState(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<Set<string>>(new Set());
@@ -183,6 +189,8 @@ export default function NodePanel() {
     setConnectionsOpen(true);
     setMediaOpen(false);
     setQaOpen(true);
+    setShowMapPicker(false);
+    setMapPickerLoaded(false);
   }, [activeNodeId]);
 
   // Auto-scroll content area when conversations change
@@ -678,6 +686,94 @@ export default function NodePanel() {
             ) : (
               <span className="text-xs text-ink-3 italic">no connections yet</span>
             )}
+
+            {/* Link to map */}
+            <div className="mt-3 pt-2.5 border-t border-surface-2">
+              {data.linkedMapId ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Link2 size={12} className="text-accent" />
+                    <span className="text-xs text-ink-2">
+                      linked to <span className="font-medium">{data.linkedMapTitle || 'map'}</span>
+                    </span>
+                    <button
+                      onClick={() => setLinkedMap(node.id, '', '')}
+                      className="text-2xs text-ink-3 hover:text-red-500 ml-auto"
+                    >
+                      unlink
+                    </button>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      // Navigate to the linked map via portal
+                      try {
+                        const { createClient } = await import('@/lib/supabase/client');
+                        const supabase = createClient();
+                        const { data: mapData, error } = await supabase
+                          .from('maps')
+                          .select('*')
+                          .eq('id', data.linkedMapId)
+                          .single();
+
+                        if (!error && mapData) {
+                          const { pushMap } = useExploration.getState();
+                          pushMap(mapData);
+                        }
+                      } catch {
+                        // silent fail
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 text-xs px-3 bg-accent text-white hover:opacity-80 transition-colors ${
+                      isMobile ? 'py-2 min-h-[36px]' : 'py-1.5'
+                    }`}
+                  >
+                    <Link2 size={12} />
+                    go to map
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      if (!mapPickerLoaded) {
+                        fetchSavedMaps();
+                        setMapPickerLoaded(true);
+                      }
+                      setShowMapPicker(!showMapPicker);
+                    }}
+                    className={`flex items-center gap-1.5 text-xs text-ink-3 hover:text-ink-0 transition-colors ${
+                      isMobile ? 'py-1.5 min-h-[36px]' : ''
+                    }`}
+                  >
+                    <Link2 size={12} />
+                    link to another map
+                  </button>
+
+                  {showMapPicker && (
+                    <div className="mt-2 border border-surface-2 max-h-32 overflow-y-auto">
+                      {savedMaps.length === 0 ? (
+                        <p className="text-2xs text-ink-3 px-3 py-2">no saved maps</p>
+                      ) : (
+                        savedMaps.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => {
+                              setLinkedMap(node.id, m.id, m.title || m.seed_term);
+                              setShowMapPicker(false);
+                            }}
+                            className={`w-full text-left px-3 text-xs text-ink-2 hover:bg-surface-1 transition-colors ${
+                              isMobile ? 'py-2 min-h-[36px]' : 'py-1.5'
+                            }`}
+                          >
+                            {m.title || m.seed_term}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

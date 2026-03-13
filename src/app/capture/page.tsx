@@ -62,7 +62,7 @@ export default function CapturePage() {
       if (hasJourney) {
         body.journeyContext = {
           seedTerm,
-          recentNodes: nodes.slice(-10).map((n) => ({
+          recentNodes: nodes.slice(-10).map((n: { data: { label: string; summary?: string } }) => ({
             label: n.data.label,
             summary: n.data.summary,
           })),

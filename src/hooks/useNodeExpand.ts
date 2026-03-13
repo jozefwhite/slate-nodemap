@@ -1,15 +1,20 @@
 import { useCallback } from 'react';
 import { useExploration } from './useExploration';
-import { makeNode, makeEdge, computeChildPositions, deduplicateNodes, resolveOverlaps } from '@/lib/graph-utils';
+import { makeNode, makeEdge, computeChildPositions, deduplicateNodes, settleLayout } from '@/lib/graph-utils';
 import { GraphNode, GraphEdge } from '@/lib/types';
 
-/** After an image loads on any node, check siblings for overlap and nudge apart */
-function checkAndResolveOverlaps() {
-  const { nodes, edges } = useExploration.getState();
-  const adjusted = resolveOverlaps(nodes, edges);
-  if (adjusted) {
-    useExploration.setState({ nodes: adjusted });
-  }
+/** Debounced layout settle — batches rapid image loads into one settle pass */
+let settleTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSettle() {
+  if (settleTimer) clearTimeout(settleTimer);
+  settleTimer = setTimeout(() => {
+    settleTimer = null;
+    const { nodes } = useExploration.getState();
+    const adjusted = settleLayout(nodes);
+    if (adjusted) {
+      useExploration.setState({ nodes: adjusted });
+    }
+  }, 300); // batch image loads within 300ms
 }
 
 // Fire-and-forget: pre-fetch Wikipedia summaries + thumbnails for child nodes
@@ -46,7 +51,7 @@ async function prefetchSummaries(nodesToFetch: GraphNode[]) {
             ),
           });
           // If this node just got an image, resolve any new overlaps
-          if (gotImage) checkAndResolveOverlaps();
+          if (gotImage) scheduleSettle();
         }
       }
     } catch {
@@ -72,7 +77,7 @@ async function prefetchSummaries(nodesToFetch: GraphNode[]) {
             ),
           });
           // Image just loaded — resolve overlaps
-          checkAndResolveOverlaps();
+          scheduleSettle();
         }
       } catch {
         // YouTube fallback is optional
@@ -208,6 +213,9 @@ export function useNodeExpand() {
         const uniqueEdges = newEdges.filter((e) => uniqueIds.has(e.target));
 
         addNodes(unique, uniqueEdges);
+
+        // Settle layout immediately after adding new nodes
+        scheduleSettle();
 
         // Pre-fetch summaries + thumbnails in background (fire-and-forget)
         prefetchSummaries(unique);

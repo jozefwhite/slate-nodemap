@@ -99,65 +99,72 @@ export function computeChildPositions(
 }
 
 /**
- * After images load, some nodes grow taller and may overlap siblings.
- * This function checks siblings (nodes sharing a parent) and pushes
- * overlapping nodes apart vertically. Only adjusts nodes that actually
- * have images — text-only nodes keep their compact positions.
+ * Lightweight physics settle — iterative pairwise repulsion.
+ * Every node pair that overlaps gets pushed apart on the axis of
+ * least overlap. Runs a few iterations so cascading overlaps resolve.
+ * Node height is dynamic based on whether it has a banner image.
  */
-export function resolveOverlaps(
-  nodes: GraphNode[],
-  edges: GraphEdge[]
-): GraphNode[] | null {
-  const NODE_W = 180;
-  const IMAGE_NODE_H = 130; // banner (70) + label (~40) + padding
-  const TEXT_NODE_H = 55;
-  const MIN_GAP = 16;
+export function settleLayout(nodes: GraphNode[]): GraphNode[] | null {
+  if (nodes.length < 2) return null;
 
-  // Group nodes by parent
-  const parentToChildren = new Map<string, string[]>();
-  for (const edge of edges) {
-    const children = parentToChildren.get(edge.source) || [];
-    children.push(edge.target);
-    parentToChildren.set(edge.source, children);
-  }
+  const ITERATIONS = 4;
+  const NODE_W = 190;
+  const IMAGE_H = 130; // banner (70) + label (~40) + padding
+  const TEXT_H = 55;
+  const GAP_X = 20;
+  const GAP_Y = 16;
+
+  const getH = (n: GraphNode) => (n.data.imageUrl ? IMAGE_H : TEXT_H);
 
   let changed = false;
-  const updated = nodes.map((n) => ({ ...n, position: { ...n.position } }));
-  const nodeMap = new Map(updated.map((n) => [n.id, n]));
+  const settled = nodes.map((n) => ({ ...n, position: { ...n.position } }));
 
-  parentToChildren.forEach((childIds) => {
-    if (childIds.length < 2) return;
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    for (let i = 0; i < settled.length; i++) {
+      for (let j = i + 1; j < settled.length; j++) {
+        const a = settled[i];
+        const b = settled[j];
 
-    // Get sibling nodes sorted by Y position
-    const siblings = childIds
-      .map((id) => nodeMap.get(id))
-      .filter((n): n is GraphNode => !!n)
-      .sort((a, b) => a.position.y - b.position.y);
+        const dx = Math.abs(a.position.x - b.position.x);
+        const dy = Math.abs(a.position.y - b.position.y);
 
-    // Check each consecutive pair for overlap
-    for (let i = 0; i < siblings.length - 1; i++) {
-      const upper = siblings[i];
-      const lower = siblings[i + 1];
+        const minDx = NODE_W + GAP_X;
+        const minDy = (getH(a) + getH(b)) / 2 + GAP_Y;
 
-      // Skip if not in the same X column
-      if (Math.abs(upper.position.x - lower.position.x) > NODE_W + 40) continue;
+        const overlapX = minDx - dx;
+        const overlapY = minDy - dy;
 
-      const upperH = upper.data.imageUrl ? IMAGE_NODE_H : TEXT_NODE_H;
-      const requiredGap = upperH + MIN_GAP;
-      const actualGap = lower.position.y - upper.position.y;
-
-      if (actualGap < requiredGap) {
-        const shift = requiredGap - actualGap;
-        // Push this node and all nodes below it down
-        for (let j = i + 1; j < siblings.length; j++) {
-          siblings[j].position.y += shift;
+        // Both axes must overlap for a real collision
+        if (overlapX > 0 && overlapY > 0) {
+          // Push apart on the axis of least penetration
+          if (overlapY <= overlapX) {
+            // Separate vertically
+            const shift = (overlapY / 2) + 1;
+            if (a.position.y <= b.position.y) {
+              a.position.y -= shift;
+              b.position.y += shift;
+            } else {
+              a.position.y += shift;
+              b.position.y -= shift;
+            }
+          } else {
+            // Separate horizontally
+            const shift = (overlapX / 2) + 1;
+            if (a.position.x <= b.position.x) {
+              a.position.x -= shift;
+              b.position.x += shift;
+            } else {
+              a.position.x += shift;
+              b.position.x -= shift;
+            }
+          }
+          changed = true;
         }
-        changed = true;
       }
     }
-  });
+  }
 
-  return changed ? updated : null;
+  return changed ? settled : null;
 }
 
 export function deduplicateNodes(

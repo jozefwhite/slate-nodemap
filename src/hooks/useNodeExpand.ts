@@ -124,6 +124,31 @@ export function useNodeExpand() {
           // Are.na is optional
         }
 
+        // If Wikipedia, dictionary, and Are.na all returned nothing,
+        // fall back to Claude for AI-suggested connections
+        if (wikiLinks.length === 0 && dictWords.length === 0) {
+          try {
+            const existingLabels = useExploration.getState().nodes.map((n) => n.data.label);
+            const seedTerm = useExploration.getState().seedTerm;
+            const suggestRes = await fetch('/api/suggest', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                topic: label,
+                context: seedTerm || undefined,
+                existingNodes: existingLabels,
+              }),
+            });
+            const suggestData = await suggestRes.json();
+            const aiSuggestions: string[] = suggestData.suggestions || [];
+            for (const s of aiSuggestions) {
+              wikiLinks.push(s);
+            }
+          } catch {
+            // AI suggestions are optional
+          }
+        }
+
         const childCount = wikiLinks.length + dictWords.length;
         if (childCount === 0) {
           setLoading(false);

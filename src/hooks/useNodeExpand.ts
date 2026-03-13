@@ -3,6 +3,46 @@ import { useExploration } from './useExploration';
 import { makeNode, makeEdge, computeChildPositions, deduplicateNodes } from '@/lib/graph-utils';
 import { GraphNode, GraphEdge } from '@/lib/types';
 
+// Fire-and-forget: pre-fetch Wikipedia summaries + thumbnails for child nodes
+async function prefetchSummaries(nodesToFetch: GraphNode[]) {
+  for (let i = 0; i < nodesToFetch.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 200));
+
+    try {
+      const res = await fetch(
+        `/api/wikipedia?title=${encodeURIComponent(nodesToFetch[i].data.label)}`
+      );
+      const wikiData = await res.json();
+
+      if (wikiData.summary?.extract || wikiData.intro) {
+        const summaryText = wikiData.intro || wikiData.summary?.extract || '';
+        const { nodes: currentNodes } = useExploration.getState();
+        const target = currentNodes.find((n) => n.id === nodesToFetch[i].id);
+        if (target && !target.data.summary) {
+          useExploration.setState({
+            nodes: currentNodes.map((n) =>
+              n.id === nodesToFetch[i].id
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      summary: summaryText,
+                      url: wikiData.summary?.content_urls?.desktop?.page || n.data.url,
+                      imageUrl: n.data.imageUrl || wikiData.summary?.thumbnail?.source,
+                      summarySource: 'wikipedia' as const,
+                    },
+                  }
+                : n
+            ),
+          });
+        }
+      }
+    } catch {
+      // Silent fail — summary will load when panel opens
+    }
+  }
+}
+
 export function useNodeExpand() {
   const { nodes, expandNode, addNodes, setLoading } = useExploration();
 
@@ -40,7 +80,20 @@ export function useNodeExpand() {
           }
         }
 
-        const childCount = wikiLinks.length + dictWords.length;
+        // Fetch Are.na channels for cultural context (max 2)
+        let arenaResults: string[] = [];
+        try {
+          const arenaRes = await fetch(`/api/arena?q=${encodeURIComponent(label)}`);
+          const arenaData = await arenaRes.json();
+          arenaResults = (arenaData.channels || [])
+            .filter((c: { length: number }) => c.length > 5)
+            .map((c: { title: string }) => c.title)
+            .slice(0, 2);
+        } catch {
+          // Are.na is optional
+        }
+
+        const childCount = wikiLinks.length + dictWords.length + arenaResults.length;
         if (childCount === 0) {
           setLoading(false);
           return;
@@ -78,14 +131,26 @@ export function useNodeExpand() {
           newEdges.push(makeEdge(nodeId, childNode.id, 'synonym'));
         });
 
+        // Create Are.na child nodes
+        arenaResults.forEach((title, i) => {
+          const posIndex = wikiLinks.length + dictWords.length + i;
+          const childNode = makeNode(title, 'arena', positions[posIndex], {
+            depth: node.data.depth + 1,
+          });
+          newNodes.push(childNode);
+          newEdges.push(makeEdge(nodeId, childNode.id));
+        });
+
         // Deduplicate against existing nodes
-        // Need to get the latest nodes from the store since expandNode just ran
         const currentNodes = useExploration.getState().nodes;
         const unique = deduplicateNodes(newNodes, currentNodes);
         const uniqueIds = new Set(unique.map((n) => n.id));
         const uniqueEdges = newEdges.filter((e) => uniqueIds.has(e.target));
 
         addNodes(unique, uniqueEdges);
+
+        // Pre-fetch summaries + thumbnails in background (fire-and-forget)
+        prefetchSummaries(unique);
       } catch (error) {
         console.error('Expansion failed:', error);
       } finally {

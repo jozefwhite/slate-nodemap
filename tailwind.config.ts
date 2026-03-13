@@ -24,6 +24,7 @@ const config: Config = {
         'node-image': '#ec4899',
         'node-user': '#10b981',
         'node-wikidata': '#06b6d4',
+        'node-arena': '#3b82f6',
       },
       fontFamily: {
         sans: ['Instrument Sans', 'system-ui', 'sans-serif'],

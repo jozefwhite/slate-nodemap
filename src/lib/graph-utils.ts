@@ -26,6 +26,7 @@ export function makeNode(
       createdAt: new Date().toISOString(),
       conversations: [],
       enrichedContent: opts.enrichedContent,
+      summarySource: opts.summarySource,
     },
   };
 }

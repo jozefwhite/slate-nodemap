@@ -28,6 +28,7 @@ const sourceLabels: Record<NodeSource, string> = {
   wikidata: 'WIKIDATA',
   image: 'IMAGE',
   user: 'USER',
+  arena: 'ARE.NA',
 };
 
 const sourceColors: Record<NodeSource, string> = {
@@ -36,6 +37,7 @@ const sourceColors: Record<NodeSource, string> = {
   wikidata: 'bg-node-wikidata',
   image: 'bg-node-image',
   user: 'bg-node-user',
+  arena: 'bg-node-arena',
 };
 
 /* ── Helpers ─────────────────────────────────────────────── */
@@ -174,7 +176,8 @@ export default function NodePanel() {
       nodeId: string,
       summary: string,
       url?: string,
-      imageUrl?: string
+      imageUrl?: string,
+      summarySource?: 'wikipedia' | 'ai' | 'arena'
     ) => {
       const { nodes: currentNodes } = useExploration.getState();
       const targetNode = currentNodes.find((n) => n.id === nodeId);
@@ -189,6 +192,7 @@ export default function NodePanel() {
                     summary,
                     url: url || n.data.url,
                     imageUrl: n.data.imageUrl || imageUrl,
+                    summarySource: summarySource || n.data.summarySource,
                   },
                 }
               : n
@@ -210,7 +214,8 @@ export default function NodePanel() {
             node.id,
             summaryText,
             wikiData.summary?.content_urls?.desktop?.page,
-            wikiData.summary?.thumbnail?.source
+            wikiData.summary?.thumbnail?.source,
+            'wikipedia'
           );
           return;
         }
@@ -227,7 +232,7 @@ export default function NodePanel() {
         });
         const descData = await descRes.json();
         if (descData.description) {
-          updateNodeSummary(node.id, descData.description);
+          updateNodeSummary(node.id, descData.description, undefined, undefined, 'ai');
         }
       } catch {
         // Silent fail
@@ -438,6 +443,18 @@ export default function NodePanel() {
 
         {aboutOpen && (
           <div className="px-4 pb-3 -mt-0.5">
+            {data.summarySource && (
+              <span className={`inline-block text-2xs font-mono uppercase tracking-wider px-1.5 py-0.5 mb-2 ${
+                data.summarySource === 'wikipedia'
+                  ? 'bg-amber-50 text-amber-700'
+                  : data.summarySource === 'ai'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'bg-emerald-50 text-emerald-700'
+              }`}>
+                {data.summarySource === 'wikipedia' ? 'WIKIPEDIA' :
+                 data.summarySource === 'ai' ? 'AI SUMMARY' : 'ARE.NA'}
+              </span>
+            )}
             {isFetchingSummary ? (
               <div className="flex items-center gap-2 text-xs text-ink-3">
                 <Loader2 size={12} className="animate-spin" />
@@ -510,16 +527,25 @@ export default function NodePanel() {
                       <button
                         key={child.id}
                         onClick={() => setActiveNode(child.id)}
-                        className={`w-full text-left text-xs text-ink-2 hover:text-ink-0 px-2 hover:bg-surface-0 transition-colors flex items-center gap-2 ${
+                        className={`w-full text-left px-2 hover:bg-surface-0 transition-colors flex items-start gap-2 ${
                           isMobile ? 'py-2.5 min-h-[44px]' : 'py-1.5'
                         }`}
                       >
                         <div
-                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${
                             sourceColors[child.data.source]
                           }`}
                         />
-                        <span className="truncate">{child.data.label}</span>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs text-ink-2 hover:text-ink-0 truncate block">
+                            {child.data.label}
+                          </span>
+                          {child.data.summary && (
+                            <span className="text-2xs text-ink-3 line-clamp-1 block mt-0.5">
+                              {child.data.summary.split('.')[0]}.
+                            </span>
+                          )}
+                        </div>
                       </button>
                     )
                 )}

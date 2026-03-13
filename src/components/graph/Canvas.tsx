@@ -34,6 +34,7 @@ const minimapColors: Record<NodeSource, string> = {
   wikidata: '#06b6d4',
   image: '#ec4899',
   user: '#10b981',
+  arena: '#3b82f6',
 };
 
 export default function Canvas() {

@@ -10,6 +10,7 @@ const borderColors: Record<NodeSource, string> = {
   wikidata: 'border-l-node-wikidata',
   image: 'border-l-node-image',
   user: 'border-l-node-user',
+  arena: 'border-l-node-arena',
 };
 
 export default function MoodboardGrid() {

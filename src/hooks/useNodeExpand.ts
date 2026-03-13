@@ -1,7 +1,16 @@
 import { useCallback } from 'react';
 import { useExploration } from './useExploration';
-import { makeNode, makeEdge, computeChildPositions, deduplicateNodes } from '@/lib/graph-utils';
+import { makeNode, makeEdge, computeChildPositions, deduplicateNodes, resolveOverlaps } from '@/lib/graph-utils';
 import { GraphNode, GraphEdge } from '@/lib/types';
+
+/** After an image loads on any node, check siblings for overlap and nudge apart */
+function checkAndResolveOverlaps() {
+  const { nodes, edges } = useExploration.getState();
+  const adjusted = resolveOverlaps(nodes, edges);
+  if (adjusted) {
+    useExploration.setState({ nodes: adjusted });
+  }
+}
 
 // Fire-and-forget: pre-fetch Wikipedia summaries + thumbnails for child nodes
 async function prefetchSummaries(nodesToFetch: GraphNode[]) {
@@ -19,6 +28,7 @@ async function prefetchSummaries(nodesToFetch: GraphNode[]) {
         const { nodes: currentNodes } = useExploration.getState();
         const target = currentNodes.find((n) => n.id === nodesToFetch[i].id);
         if (target && !target.data.summary) {
+          const gotImage = !target.data.imageUrl && !!wikiData.summary?.thumbnail?.source;
           useExploration.setState({
             nodes: currentNodes.map((n) =>
               n.id === nodesToFetch[i].id
@@ -35,6 +45,8 @@ async function prefetchSummaries(nodesToFetch: GraphNode[]) {
                 : n
             ),
           });
+          // If this node just got an image, resolve any new overlaps
+          if (gotImage) checkAndResolveOverlaps();
         }
       }
     } catch {
@@ -59,6 +71,8 @@ async function prefetchSummaries(nodesToFetch: GraphNode[]) {
                 : n
             ),
           });
+          // Image just loaded — resolve overlaps
+          checkAndResolveOverlaps();
         }
       } catch {
         // YouTube fallback is optional

@@ -57,13 +57,12 @@ export function computeChildPositions(
   existingNodes: GraphNode[] = []
 ): { x: number; y: number }[] {
   const baseXOffset = 280;
-  const ySpacing = 160; // enough room for banner image + label
+  const ySpacing = 110; // compact initial spacing — images adjust later
   const positions: { x: number; y: number }[] = [];
 
-  // Approximate node dimensions for overlap detection
-  // Accounts for banner image (70px) + label area (~45px) + padding
+  // Approximate node dimensions for overlap detection (text-only size)
   const nodeW = 180;
-  const nodeH = 140;
+  const nodeH = 55;
 
   // Center children around parent Y
   const totalHeight = (childCount - 1) * ySpacing;
@@ -97,6 +96,68 @@ export function computeChildPositions(
   }
 
   return positions;
+}
+
+/**
+ * After images load, some nodes grow taller and may overlap siblings.
+ * This function checks siblings (nodes sharing a parent) and pushes
+ * overlapping nodes apart vertically. Only adjusts nodes that actually
+ * have images — text-only nodes keep their compact positions.
+ */
+export function resolveOverlaps(
+  nodes: GraphNode[],
+  edges: GraphEdge[]
+): GraphNode[] | null {
+  const NODE_W = 180;
+  const IMAGE_NODE_H = 130; // banner (70) + label (~40) + padding
+  const TEXT_NODE_H = 55;
+  const MIN_GAP = 16;
+
+  // Group nodes by parent
+  const parentToChildren = new Map<string, string[]>();
+  for (const edge of edges) {
+    const children = parentToChildren.get(edge.source) || [];
+    children.push(edge.target);
+    parentToChildren.set(edge.source, children);
+  }
+
+  let changed = false;
+  const updated = nodes.map((n) => ({ ...n, position: { ...n.position } }));
+  const nodeMap = new Map(updated.map((n) => [n.id, n]));
+
+  parentToChildren.forEach((childIds) => {
+    if (childIds.length < 2) return;
+
+    // Get sibling nodes sorted by Y position
+    const siblings = childIds
+      .map((id) => nodeMap.get(id))
+      .filter((n): n is GraphNode => !!n)
+      .sort((a, b) => a.position.y - b.position.y);
+
+    // Check each consecutive pair for overlap
+    for (let i = 0; i < siblings.length - 1; i++) {
+      const upper = siblings[i];
+      const lower = siblings[i + 1];
+
+      // Skip if not in the same X column
+      if (Math.abs(upper.position.x - lower.position.x) > NODE_W + 40) continue;
+
+      const upperH = upper.data.imageUrl ? IMAGE_NODE_H : TEXT_NODE_H;
+      const requiredGap = upperH + MIN_GAP;
+      const actualGap = lower.position.y - upper.position.y;
+
+      if (actualGap < requiredGap) {
+        const shift = requiredGap - actualGap;
+        // Push this node and all nodes below it down
+        for (let j = i + 1; j < siblings.length; j++) {
+          siblings[j].position.y += shift;
+        }
+        changed = true;
+      }
+    }
+  });
+
+  return changed ? updated : null;
 }
 
 export function deduplicateNodes(

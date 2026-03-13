@@ -80,20 +80,27 @@ export function useNodeExpand() {
           }
         }
 
-        // Fetch Are.na channels for cultural context (max 2)
-        let arenaResults: string[] = [];
+        // Use Are.na channels as hidden discovery layer — lateral connections
+        // get mixed into wiki suggestions without referencing the platform
         try {
           const arenaRes = await fetch(`/api/arena?q=${encodeURIComponent(label)}`);
           const arenaData = await arenaRes.json();
-          arenaResults = (arenaData.channels || [])
+          const arenaHints = (arenaData.channels || [])
             .filter((c: { length: number }) => c.length > 5)
             .map((c: { title: string }) => c.title)
             .slice(0, 2);
+          // Only add hints that aren't already in the wiki links
+          const existingLower = new Set(wikiLinks.map((l: string) => l.toLowerCase()));
+          for (const hint of arenaHints) {
+            if (!existingLower.has(hint.toLowerCase())) {
+              wikiLinks.push(hint);
+            }
+          }
         } catch {
           // Are.na is optional
         }
 
-        const childCount = wikiLinks.length + dictWords.length + arenaResults.length;
+        const childCount = wikiLinks.length + dictWords.length;
         if (childCount === 0) {
           setLoading(false);
           return;
@@ -129,16 +136,6 @@ export function useNodeExpand() {
           });
           newNodes.push(childNode);
           newEdges.push(makeEdge(nodeId, childNode.id, 'synonym'));
-        });
-
-        // Create Are.na child nodes
-        arenaResults.forEach((title, i) => {
-          const posIndex = wikiLinks.length + dictWords.length + i;
-          const childNode = makeNode(title, 'arena', positions[posIndex], {
-            depth: node.data.depth + 1,
-          });
-          newNodes.push(childNode);
-          newEdges.push(makeEdge(nodeId, childNode.id));
         });
 
         // Deduplicate against existing nodes

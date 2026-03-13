@@ -1,4 +1,4 @@
-export type NodeSource = 'wikipedia' | 'dictionary' | 'wikidata' | 'image' | 'user' | 'arena';
+export type NodeSource = 'wikipedia' | 'dictionary' | 'wikidata' | 'image' | 'user';
 
 export interface NodeQA {
   id: string;
@@ -22,7 +22,7 @@ export interface ConceptNodeData {
   createdAt: string;
   conversations: NodeQA[];
   enrichedContent?: string;
-  summarySource?: 'wikipedia' | 'ai' | 'arena';
+  summarySource?: 'wikipedia' | 'ai';
 }
 
 export interface GraphNode {

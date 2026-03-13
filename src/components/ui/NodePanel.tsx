@@ -28,7 +28,6 @@ const sourceLabels: Record<NodeSource, string> = {
   wikidata: 'WIKIDATA',
   image: 'IMAGE',
   user: 'USER',
-  arena: 'ARE.NA',
 };
 
 const sourceColors: Record<NodeSource, string> = {
@@ -37,7 +36,6 @@ const sourceColors: Record<NodeSource, string> = {
   wikidata: 'bg-node-wikidata',
   image: 'bg-node-image',
   user: 'bg-node-user',
-  arena: 'bg-node-arena',
 };
 
 /* ── Helpers ─────────────────────────────────────────────── */
@@ -177,7 +175,7 @@ export default function NodePanel() {
       summary: string,
       url?: string,
       imageUrl?: string,
-      summarySource?: 'wikipedia' | 'ai' | 'arena'
+      summarySource?: 'wikipedia' | 'ai'
     ) => {
       const { nodes: currentNodes } = useExploration.getState();
       const targetNode = currentNodes.find((n) => n.id === nodeId);
@@ -447,12 +445,9 @@ export default function NodePanel() {
               <span className={`inline-block text-2xs font-mono uppercase tracking-wider px-1.5 py-0.5 mb-2 ${
                 data.summarySource === 'wikipedia'
                   ? 'bg-amber-50 text-amber-700'
-                  : data.summarySource === 'ai'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'bg-emerald-50 text-emerald-700'
+                  : 'bg-blue-50 text-blue-700'
               }`}>
-                {data.summarySource === 'wikipedia' ? 'WIKIPEDIA' :
-                 data.summarySource === 'ai' ? 'AI SUMMARY' : 'ARE.NA'}
+                {data.summarySource === 'wikipedia' ? 'WIKIPEDIA' : 'AI SUMMARY'}
               </span>
             )}
             {isFetchingSummary ? (

@@ -11,7 +11,6 @@ const sourceColors: Record<NodeSource, string> = {
   wikidata: 'bg-node-wikidata',
   image: 'bg-node-image',
   user: 'bg-node-user',
-  arena: 'bg-node-arena',
 };
 
 function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeData>) {

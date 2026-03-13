@@ -57,12 +57,13 @@ export function computeChildPositions(
   existingNodes: GraphNode[] = []
 ): { x: number; y: number }[] {
   const baseXOffset = 280;
-  const ySpacing = 110; // tight but enough for node height
+  const ySpacing = 160; // enough room for banner image + label
   const positions: { x: number; y: number }[] = [];
 
   // Approximate node dimensions for overlap detection
+  // Accounts for banner image (70px) + label area (~45px) + padding
   const nodeW = 180;
-  const nodeH = 90;
+  const nodeH = 140;
 
   // Center children around parent Y
   const totalHeight = (childCount - 1) * ySpacing;

@@ -7,6 +7,7 @@ import { useExploration } from '@/hooks/useExploration';
 import { useNodeExpand } from '@/hooks/useNodeExpand';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { GraphNode, NodeSource } from '@/lib/types';
+import DotVortex from '@/components/ui/DotVortex';
 
 /* ── Source colors — matching moodboard/graph ────────────────────── */
 const borderColors: Record<NodeSource, string> = {
@@ -206,11 +207,14 @@ export default function JourneyView() {
 
   return (
     <div
-      className="h-full overflow-hidden bg-surface-0 dot-grid relative select-none"
+      className="h-full overflow-hidden bg-surface-0 relative select-none"
       onWheel={onWheel}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      {/* Animated dot vortex background */}
+      <DotVortex />
+
       {/* ── 3D perspective container ───────────────────────── */}
       <div
         className="h-full w-full relative"

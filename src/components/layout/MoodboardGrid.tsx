@@ -1,7 +1,6 @@
 'use client';
 
 import { useExploration } from '@/hooks/useExploration';
-import { useNodeExpand } from '@/hooks/useNodeExpand';
 import { NodeSource } from '@/lib/types';
 
 const borderColors: Record<NodeSource, string> = {
@@ -14,14 +13,9 @@ const borderColors: Record<NodeSource, string> = {
 
 export default function MoodboardGrid() {
   const { nodes, setActiveNode } = useExploration();
-  const { expand } = useNodeExpand();
 
-  const handleClick = (nodeId: string, expanded: boolean) => {
-    if (!expanded) {
-      expand(nodeId);
-    } else {
-      setActiveNode(nodeId);
-    }
+  const handleClick = (nodeId: string) => {
+    setActiveNode(nodeId);
   };
 
   return (
@@ -30,7 +24,7 @@ export default function MoodboardGrid() {
         {nodes.map((node) => (
           <div
             key={node.id}
-            onClick={() => handleClick(node.id, node.data.expanded)}
+            onClick={() => handleClick(node.id)}
             className={`
               bg-white border-l-2 ${borderColors[node.data.source]}
               p-3 cursor-pointer hover:bg-surface-1 transition-colors

@@ -4,7 +4,6 @@ import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useExploration } from '@/hooks/useExploration';
-import { useNodeExpand } from '@/hooks/useNodeExpand';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { GraphNode, NodeSource } from '@/lib/types';
 import DotVortex from '@/components/ui/DotVortex';
@@ -32,21 +31,15 @@ function JourneyCard({
   node,
   index,
   isMobile,
-  onExpand,
   onSelect,
 }: {
   node: GraphNode;
   index: number;
   isMobile: boolean;
-  onExpand: (id: string) => void;
   onSelect: (id: string) => void;
 }) {
   const handleClick = () => {
-    if (!node.data.expanded) {
-      onExpand(node.id);
-    } else {
-      onSelect(node.id);
-    }
+    onSelect(node.id);
   };
 
   const w = isMobile ? 200 : 240;
@@ -111,7 +104,7 @@ function JourneyCard({
 
         {!node.data.expanded && (
           <span className="text-2xs font-mono text-accent mt-2 block">
-            tap to explore →
+            tap to read →
           </span>
         )}
       </div>
@@ -122,7 +115,6 @@ function JourneyCard({
 /* ── Main JourneyView ────────────────────────────────────────────── */
 export default function JourneyView() {
   const { nodes, setActiveNode } = useExploration();
-  const { expand } = useNodeExpand();
   const isMobile = useIsMobile();
 
   const [activeLayerIndex, setActiveLayerIndex] = useState(0);
@@ -310,7 +302,6 @@ export default function JourneyView() {
                           node={node}
                           index={i}
                           isMobile={isMobile}
-                          onExpand={expand}
                           onSelect={(id) => setActiveNode(id)}
                         />
                       ))}

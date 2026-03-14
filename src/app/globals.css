@@ -130,41 +130,9 @@ body {
 }
 
 /* ── Journey view ──────────────────────────────────────── */
-.journey-container {
-  perspective: 1200px;
-  perspective-origin: center 80%;
-}
 
-.journey-layer {
-  transform-style: preserve-3d;
-  backface-visibility: hidden;
-  will-change: transform, opacity;
-}
-
-/* Horizontal scroll snap for journey cards */
-.journey-scroll {
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scroll-padding: 16px;
-}
-
-.journey-scroll > * {
-  scroll-snap-align: start;
-}
-
-/* Right-edge fade gradient on card scroll */
-.journey-scroll-container {
-  position: relative;
-}
-
-.journey-scroll-container::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 40px;
-  background: linear-gradient(to right, transparent, #fafaf9);
-  pointer-events: none;
-  z-index: 1;
+/* Prevent body scroll when navigating layers */
+.journey-no-scroll {
+  overflow: hidden;
+  touch-action: none;
 }

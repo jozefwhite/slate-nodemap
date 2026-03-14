@@ -49,12 +49,22 @@ const config: Config = {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.7' },
         },
+        'layer-in': {
+          '0%': { opacity: '0', transform: 'translateY(40px) scale(0.95)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'card-stagger': {
+          '0%': { opacity: '0', transform: 'translateX(20px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.4s ease-out',
         'slide-up': 'slide-up 0.3s ease-out',
         'node-appear': 'node-appear 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
         'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
+        'layer-in': 'layer-in 0.5s cubic-bezier(0.32, 0.72, 0, 1)',
+        'card-stagger': 'card-stagger 0.4s ease-out',
       },
     },
   },

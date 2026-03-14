@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GraphNode, GraphEdge, PathStep, NodeQA, SavedMap } from '@/lib/types';
+import { GraphNode, GraphEdge, PathStep, NodeQA, SavedMap, ViewMode } from '@/lib/types';
 import { getDescendantIds } from '@/lib/graph-utils';
 
 export type PanelSnap = 'peek' | 'half' | 'full' | 'closed';
@@ -9,7 +9,7 @@ interface ExplorationState {
   edges: GraphEdge[];
   path: PathStep[];
   activeNodeId: string | null;
-  viewMode: 'graph' | 'moodboard';
+  viewMode: ViewMode;
   isLoading: boolean;
   seedTerm: string;
   panelSnapPoint: PanelSnap;
@@ -22,7 +22,7 @@ interface ExplorationState {
   addNodes: (nodes: GraphNode[], edges: GraphEdge[]) => void;
   expandNode: (nodeId: string) => void;
   setActiveNode: (nodeId: string | null) => void;
-  setViewMode: (mode: 'graph' | 'moodboard') => void;
+  setViewMode: (mode: ViewMode) => void;
   setLoading: (loading: boolean) => void;
   setPanelSnapPoint: (snap: PanelSnap) => void;
   setCenterNodeId: (nodeId: string | null) => void;

@@ -1,4 +1,5 @@
 export type NodeSource = 'wikipedia' | 'dictionary' | 'wikidata' | 'image' | 'user';
+export type ViewMode = 'graph' | 'moodboard' | 'journey';
 
 export interface NodeQA {
   id: string;
@@ -56,7 +57,7 @@ export interface SavedMap {
   nodes: GraphNode[];
   edges: GraphEdge[];
   path: PathStep[];
-  view_mode: 'graph' | 'moodboard';
+  view_mode: ViewMode;
   created_at: string;
   updated_at: string;
   thumbnail_url?: string;

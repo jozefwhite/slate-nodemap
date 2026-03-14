@@ -14,6 +14,7 @@ import ViewToggle from '@/components/ui/ViewToggle';
 import PathBreadcrumb from '@/components/ui/PathBreadcrumb';
 import NodePanel from '@/components/ui/NodePanel';
 import MoodboardGrid from '@/components/layout/MoodboardGrid';
+import JourneyView from '@/components/layout/JourneyView';
 import CaptureModal from '@/components/ui/CaptureModal';
 import AuthModal from '@/components/ui/AuthModal';
 import Toast from '@/components/ui/Toast';
@@ -191,10 +192,11 @@ export default function ExplorePage() {
         </div>
       )}
 
-      {/* Mobile compact toolbar — search only */}
+      {/* Mobile compact toolbar */}
       {isMobile && (
         <div className="h-10 border-b border-surface-2 bg-white flex items-center px-3 gap-2">
           <SearchInput compact onSearch={() => {}} />
+          <ViewToggle />
           {isLoading && nodes.length > 0 && (
             <span className="text-2xs font-mono text-ink-3 animate-pulse-subtle flex-shrink-0">
               expanding...
@@ -215,6 +217,8 @@ export default function ExplorePage() {
           </div>
         ) : viewMode === 'graph' ? (
           <Canvas />
+        ) : viewMode === 'journey' ? (
+          <JourneyView />
         ) : (
           <MoodboardGrid />
         )}

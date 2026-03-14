@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, Network, LayoutGrid, Merge, Check, X } from 'lucide-react';
+import { Trash2, Network, LayoutGrid, Layers, Merge, Check, X } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import AuthModal from '@/components/ui/AuthModal';
 import Toast from '@/components/ui/Toast';
@@ -217,6 +217,8 @@ export default function SavedPage() {
                         </div>
                       ) : map.view_mode === 'graph' ? (
                         <Network size={14} className="text-ink-3" />
+                      ) : map.view_mode === 'journey' ? (
+                        <Layers size={14} className="text-ink-3" />
                       ) : (
                         <LayoutGrid size={14} className="text-ink-3" />
                       )}

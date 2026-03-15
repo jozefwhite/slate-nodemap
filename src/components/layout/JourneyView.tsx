@@ -159,12 +159,15 @@ function JourneyCard({
 
 /* ── Main JourneyView ────────────────────────────────────────────── */
 export default function JourneyView() {
-  const { nodes, setActiveNode } = useExploration();
+  const { nodes, setActiveNode, activeNodeId } = useExploration();
   const { expand } = useNodeExpand();
   const isMobile = useIsMobile();
 
   const [activeLayerIndex, setActiveLayerIndex] = useState(0);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+
+  // Panel is open on desktop — shift nav & constrain cards
+  const panelOpen = !isMobile && !!activeNodeId;
 
   // Group nodes by depth
   const layers = useMemo(() => {
@@ -354,11 +357,12 @@ export default function JourneyView() {
                       ))}
                     </div>
                   ) : (
-                    /* Desktop: flowing wrap grid */
+                    /* Desktop: flowing wrap grid — shrinks when panel is open */
                     <div
-                      className="overflow-y-auto px-8 pb-32"
+                      className="overflow-y-auto px-8 pb-32 transition-[padding] duration-300"
                       style={{
                         maxHeight: 'calc(100% - 32px)',
+                        paddingRight: panelOpen ? 'calc(24rem + 2rem)' : undefined,
                       }}
                     >
                       <div className="flex flex-wrap gap-4 items-start">
@@ -426,8 +430,11 @@ export default function JourneyView() {
         </span>
       </div>
 
-      {/* Up/Down arrows — right side */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-1">
+      {/* Up/Down arrows — right side, shifts left when panel is open */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 z-50 flex flex-col gap-1 transition-all duration-300"
+        style={{ right: panelOpen ? 'calc(24rem + 12px)' : '12px' }}
+      >
         <button
           onClick={goUp}
           disabled={activeLayerIndex === 0}

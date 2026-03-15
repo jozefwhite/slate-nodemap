@@ -53,13 +53,13 @@ function JourneyCard({
   onExpand: (id: string) => void;
   onToggle: (id: string) => void;
 }) {
-  const w = isMobile ? '100%' : isExpanded ? 360 : 240;
+  const w = isMobile ? 'calc(100vw - 48px)' : isExpanded ? 360 : 240;
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, x: isMobile ? 30 : 0, y: isMobile ? 0 : 20 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
       transition={{
         type: 'spring',
         stiffness: 300,
@@ -71,8 +71,9 @@ function JourneyCard({
         bg-white border-l-2 shadow-sm
         ${borderColors[node.data.source]}
         hover:shadow-md transition-shadow
+        ${isMobile ? 'snap-center' : ''}
       `}
-      style={{ width: w, maxWidth: isMobile ? '100%' : undefined }}
+      style={{ width: w }}
       whileHover={!isMobile ? { y: -2, scale: 1.01 } : undefined}
       whileTap={{ scale: 0.98 }}
     >
@@ -223,7 +224,8 @@ export default function JourneyView() {
     [goUp, goDown],
   );
 
-  // Touch swipe navigation
+  // Touch swipe navigation — vertical only, with strong bias to avoid
+  // conflicting with horizontal card swiping on mobile
   const touchStart = useRef({ x: 0, y: 0 });
   const onTouchStart = (e: React.TouchEvent) => {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -231,7 +233,8 @@ export default function JourneyView() {
   const onTouchEnd = (e: React.TouchEvent) => {
     const dx = e.changedTouches[0].clientX - touchStart.current.x;
     const dy = e.changedTouches[0].clientY - touchStart.current.y;
-    if (Math.abs(dy) > Math.abs(dx) * 1.5 && Math.abs(dy) > 50) {
+    // Must be strongly vertical (3x more vertical than horizontal) and 80px+
+    if (Math.abs(dy) > Math.abs(dx) * 3 && Math.abs(dy) > 80) {
       if (dy < 0) goDown();
       else goUp();
     }
@@ -333,14 +336,16 @@ export default function JourneyView() {
                     </div>
                   )}
 
-                  {/* Cards — vertical wrap layout on desktop, horizontal scroll on mobile */}
+                  {/* Cards — horizontal snap-scroll on mobile, wrap grid on desktop */}
                   {isMobile ? (
-                    /* Mobile: vertical scroll of full-width cards */
+                    /* Mobile: horizontal snap-scroll, one card centered at a time */
                     <div
-                      className="overflow-y-auto px-4 pb-32 space-y-3"
+                      className="flex gap-3 overflow-x-auto px-6 pb-4 items-start hide-scrollbar"
                       style={{
-                        maxHeight: 'calc(100% - 32px)',
+                        scrollSnapType: 'x mandatory',
                         WebkitOverflowScrolling: 'touch',
+                        scrollPadding: '24px',
+                        maxHeight: 'calc(100% - 32px)',
                       }}
                     >
                       {layer.nodes.map((node, i) => (
@@ -355,6 +360,8 @@ export default function JourneyView() {
                           onToggle={toggleCard}
                         />
                       ))}
+                      {/* End spacer for last card centering */}
+                      <div className="flex-shrink-0 w-6" />
                     </div>
                   ) : (
                     /* Desktop: flowing wrap grid — shrinks when panel is open */

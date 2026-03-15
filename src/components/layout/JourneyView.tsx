@@ -1,14 +1,15 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'motion/react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ChevronUp, ChevronDown, GitBranch, X } from 'lucide-react';
 import { useExploration } from '@/hooks/useExploration';
+import { useNodeExpand } from '@/hooks/useNodeExpand';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { GraphNode, NodeSource } from '@/lib/types';
 import DotVortex from '@/components/ui/DotVortex';
 
-/* ── Source colors — matching moodboard/graph ────────────────────── */
+/* ── Source colors ────────────────────────────────────────────────── */
 const borderColors: Record<NodeSource, string> = {
   wikipedia: 'border-l-node-wikipedia',
   dictionary: 'border-l-node-dictionary',
@@ -17,57 +18,70 @@ const borderColors: Record<NodeSource, string> = {
   user: 'border-l-node-user',
 };
 
+const bgAccent: Record<NodeSource, string> = {
+  wikipedia: 'bg-node-wikipedia',
+  dictionary: 'bg-node-dictionary',
+  wikidata: 'bg-node-wikidata',
+  image: 'bg-node-image',
+  user: 'bg-node-user',
+};
+
 /* ── 3D tuning constants ─────────────────────────────────────────── */
 const PERSPECTIVE = 600;
-const PERSPECTIVE_ORIGIN = '50% 25%';
+const PERSPECTIVE_ORIGIN = '50% 45%';
 const ROTATE_X = 48;
 const Z_GAP = -90;
-const Y_GAP = -20;
-const SCALE_STEP = 0.045;
+const Y_GAP = -18;
+const SCALE_STEP = 0.04;
 const BRIGHTNESS_STEP = 0.12;
 
-/* ── Journey Card — matches moodboard card style ─────────────────── */
+/* ── Journey Card — floating, expandable ─────────────────────────── */
 function JourneyCard({
   node,
   index,
   isMobile,
+  isExpanded,
   onSelect,
+  onExpand,
+  onToggle,
 }: {
   node: GraphNode;
   index: number;
   isMobile: boolean;
+  isExpanded: boolean;
   onSelect: (id: string) => void;
+  onExpand: (id: string) => void;
+  onToggle: (id: string) => void;
 }) {
-  const handleClick = () => {
-    onSelect(node.id);
-  };
-
-  const w = isMobile ? 200 : 240;
+  const w = isMobile ? '100%' : isExpanded ? 360 : 240;
 
   return (
     <motion.div
-      onClick={handleClick}
-      initial={{ opacity: 0, x: 30 }}
-      animate={{ opacity: 1, x: 0 }}
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{
         type: 'spring',
         stiffness: 300,
         damping: 30,
-        delay: index * 0.05,
+        delay: index * 0.04,
       }}
       className={`
-        flex-shrink-0 snap-start cursor-pointer group
-        bg-white border border-surface-2 border-l-2
+        flex-shrink-0 cursor-pointer group
+        bg-white border-l-2 shadow-sm
         ${borderColors[node.data.source]}
-        hover:bg-surface-1 transition-colors
+        hover:shadow-md transition-shadow
       `}
-      style={{ width: w }}
-      whileHover={{ y: -3 }}
+      style={{ width: w, maxWidth: isMobile ? '100%' : undefined }}
+      whileHover={!isMobile ? { y: -2, scale: 1.01 } : undefined}
       whileTap={{ scale: 0.98 }}
     >
       {/* Image */}
       {node.data.imageUrl && (
-        <div className="aspect-video overflow-hidden bg-surface-1">
+        <div
+          className={`overflow-hidden bg-surface-1 ${isExpanded ? 'aspect-[16/7]' : 'aspect-video'}`}
+          onClick={() => onToggle(node.id)}
+        >
           <img
             src={node.data.imageUrl}
             alt={node.data.label}
@@ -78,20 +92,20 @@ function JourneyCard({
       )}
 
       {/* Content */}
-      <div className="p-3">
+      <div className="p-3" onClick={() => onToggle(node.id)}>
         <div className="text-xs font-medium text-ink-0 line-clamp-2 mb-1">
           {node.data.label}
         </div>
 
         {node.data.summary && (
-          <div className="text-2xs text-ink-2 line-clamp-3 mb-1.5">
+          <div className={`text-2xs text-ink-2 mb-1.5 ${isExpanded ? '' : 'line-clamp-3'}`}>
             {node.data.summary}
           </div>
         )}
 
         {node.data.tags.length > 0 && (
-          <div className="flex gap-1 flex-wrap">
-            {node.data.tags.slice(0, 2).map((tag) => (
+          <div className="flex gap-1 flex-wrap mb-2">
+            {node.data.tags.slice(0, isExpanded ? 5 : 2).map((tag) => (
               <span
                 key={tag}
                 className="text-2xs font-mono text-ink-3 bg-surface-1 px-1 py-0.5"
@@ -101,11 +115,42 @@ function JourneyCard({
             ))}
           </div>
         )}
+      </div>
+
+      {/* Action buttons — always visible */}
+      <div className="px-3 pb-3 flex gap-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(node.id);
+          }}
+          className={`flex-1 flex items-center justify-center gap-1.5 text-2xs font-mono text-ink-3 border border-surface-2 hover:border-ink-3 hover:text-ink-0 transition-colors ${
+            isMobile ? 'py-2 min-h-[40px]' : 'py-1.5'
+          }`}
+        >
+          read more
+        </button>
 
         {!node.data.expanded && (
-          <span className="text-2xs font-mono text-accent mt-2 block">
-            tap to read →
-          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand(node.id);
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-2xs font-mono bg-ink-0 text-white hover:bg-ink-1 transition-colors ${
+              isMobile ? 'py-2 min-h-[40px]' : 'py-1.5'
+            }`}
+          >
+            <GitBranch size={10} />
+            explore
+          </button>
+        )}
+
+        {node.data.expanded && (
+          <div className="flex-1 flex items-center justify-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${bgAccent[node.data.source]}`} />
+            <span className="text-2xs font-mono text-ink-3">explored</span>
+          </div>
         )}
       </div>
     </motion.div>
@@ -115,9 +160,11 @@ function JourneyCard({
 /* ── Main JourneyView ────────────────────────────────────────────── */
 export default function JourneyView() {
   const { nodes, setActiveNode } = useExploration();
+  const { expand } = useNodeExpand();
   const isMobile = useIsMobile();
 
   const [activeLayerIndex, setActiveLayerIndex] = useState(0);
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   // Group nodes by depth
   const layers = useMemo(() => {
@@ -185,6 +232,10 @@ export default function JourneyView() {
       if (dy < 0) goDown();
       else goUp();
     }
+  };
+
+  const toggleCard = (id: string) => {
+    setExpandedCardId((prev) => (prev === id ? null : id));
   };
 
   if (layers.length === 0) {
@@ -259,41 +310,34 @@ export default function JourneyView() {
                 }}
                 onClick={!isActive ? () => setActiveLayerIndex(index) : undefined}
               >
-                {/* Layer surface */}
+                {/* ── Floating cards area — no container border ─── */}
                 <div
-                  className={`absolute inset-x-4 md:inset-x-8 border border-surface-2 overflow-hidden ${
-                    isActive ? 'bg-white' : 'bg-surface-1'
-                  }`}
+                  className="absolute inset-x-0"
                   style={{
-                    top: isMobile ? '18%' : '15%',
+                    top: isMobile ? '10%' : '8%',
                     bottom: 0,
                   }}
                 >
-                  {/* Layer header bar */}
-                  <div className="px-4 py-2.5 flex items-center gap-3 border-b border-surface-2">
-                    <span className="text-2xs font-mono uppercase tracking-wider text-ink-3">
-                      {layer.depth === 0 ? 'origin' : `depth ${layer.depth}`}
-                    </span>
-                    <div className="w-px h-3 bg-surface-2" />
-                    <span className="text-2xs font-mono text-ink-3">
-                      {layer.nodes.length} node{layer.nodes.length !== 1 ? 's' : ''}
-                    </span>
-                    <div className="flex-1" />
-                    {isActive && (
-                      <span className="text-2xs font-mono text-ink-3">
-                        scroll →
+                  {/* Minimal depth label — floats above cards */}
+                  {isActive && (
+                    <div className="px-4 md:px-8 pb-3 flex items-center gap-3">
+                      <span className="text-2xs font-mono uppercase tracking-wider text-ink-3">
+                        {layer.depth === 0 ? 'origin' : `depth ${layer.depth}`}
                       </span>
-                    )}
-                  </div>
+                      <span className="text-2xs font-mono text-ink-3/40">
+                        {layer.nodes.length} node{layer.nodes.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  )}
 
-                  {/* Horizontal card scroll */}
-                  <div className="relative h-full">
+                  {/* Cards — vertical wrap layout on desktop, horizontal scroll on mobile */}
+                  {isMobile ? (
+                    /* Mobile: vertical scroll of full-width cards */
                     <div
-                      className="flex gap-3 overflow-x-auto px-4 py-4 hide-scrollbar h-full items-start"
+                      className="overflow-y-auto px-4 pb-32 space-y-3"
                       style={{
-                        scrollSnapType: 'x mandatory',
+                        maxHeight: 'calc(100% - 32px)',
                         WebkitOverflowScrolling: 'touch',
-                        scrollPadding: '16px',
                       }}
                     >
                       {layer.nodes.map((node, i) => (
@@ -302,16 +346,67 @@ export default function JourneyView() {
                           node={node}
                           index={i}
                           isMobile={isMobile}
+                          isExpanded={expandedCardId === node.id}
                           onSelect={(id) => setActiveNode(id)}
+                          onExpand={(id) => expand(id)}
+                          onToggle={toggleCard}
                         />
                       ))}
-                      {/* End spacer */}
-                      <div className="flex-shrink-0 w-4" />
                     </div>
+                  ) : (
+                    /* Desktop: flowing wrap grid */
+                    <div
+                      className="overflow-y-auto px-8 pb-32"
+                      style={{
+                        maxHeight: 'calc(100% - 32px)',
+                      }}
+                    >
+                      <div className="flex flex-wrap gap-4 items-start">
+                        {layer.nodes.map((node, i) => (
+                          <JourneyCard
+                            key={node.id}
+                            node={node}
+                            index={i}
+                            isMobile={isMobile}
+                            isExpanded={expandedCardId === node.id}
+                            onSelect={(id) => setActiveNode(id)}
+                            onExpand={(id) => expand(id)}
+                            onToggle={toggleCard}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                    {/* Right edge fade */}
-                    <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none" />
-                  </div>
+                  {/* Behind-layer preview — faded floating cards for depth feel */}
+                  {!isActive && (
+                    <div className="absolute inset-x-0 top-0 px-8 pt-4">
+                      <div className="flex flex-wrap gap-3 items-start">
+                        {layer.nodes.slice(0, 6).map((node) => (
+                          <div
+                            key={node.id}
+                            className={`bg-white/80 border-l-2 shadow-sm ${borderColors[node.data.source]}`}
+                            style={{ width: 200 }}
+                          >
+                            {node.data.imageUrl && (
+                              <div className="aspect-video overflow-hidden bg-surface-1">
+                                <img
+                                  src={node.data.imageUrl}
+                                  alt=""
+                                  className="w-full h-full object-cover opacity-60"
+                                />
+                              </div>
+                            )}
+                            <div className="p-2">
+                              <div className="text-xs font-medium text-ink-2 line-clamp-1">
+                                {node.data.label}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
@@ -366,7 +461,7 @@ export default function JourneyView() {
       </div>
 
       {/* Bottom gradient */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-surface-0 to-transparent pointer-events-none z-10" />
+      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-surface-0 to-transparent pointer-events-none z-10" />
     </div>
   );
 }

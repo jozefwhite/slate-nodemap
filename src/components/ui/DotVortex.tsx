@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'react';
 
 /**
  * Subtle animated dot vortex background.
- * Dots arranged in concentric rings spiral slowly inward
- * toward a vanishing point, creating a portal/tunnel feel.
+ * Dots arranged in concentric elliptical rings drift very slowly,
+ * creating a barely-perceptible portal/tunnel feel.
  */
 export default function DotVortex() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -21,32 +21,34 @@ export default function DotVortex() {
     let w = 0;
     let h = 0;
 
-    // Dot definition
     interface Dot {
-      ring: number;      // which concentric ring (0 = center)
-      angle: number;     // position on the ring (radians)
-      baseRadius: number; // ring radius
-      speed: number;      // rotation speed
-      size: number;       // dot size
-      opacity: number;    // dot opacity
+      ring: number;
+      angle: number;
+      baseRadius: number;
+      speed: number;
+      size: number;
+      opacity: number;
     }
 
     const dots: Dot[] = [];
-    const RING_COUNT = 14;
-    const DOTS_PER_RING = 24;
+    const RING_COUNT = 18;
+    const DOTS_PER_RING = 20;
 
     function initDots() {
       dots.length = 0;
-      const maxRadius = Math.max(w, h) * 0.7;
+      // Use the smaller dimension so vortex fits within the viewport
+      const maxRadius = Math.min(w, h) * 0.45;
 
       for (let r = 0; r < RING_COUNT; r++) {
         const ringFraction = (r + 1) / RING_COUNT;
         const baseRadius = ringFraction * maxRadius;
-        // Outer rings rotate slower, inner rings faster
-        const speed = (0.0003 + (1 - ringFraction) * 0.001) * (r % 2 === 0 ? 1 : -1);
-        // Outer dots are larger and more visible
-        const size = 0.6 + ringFraction * 1.0;
-        const opacity = 0.06 + ringFraction * 0.1;
+
+        // VERY slow rotation — barely perceptible
+        const speed = (0.00004 + (1 - ringFraction) * 0.00012) * (r % 2 === 0 ? 1 : -1);
+
+        // Inner dots smaller and more transparent, outer dots slightly bigger
+        const size = 0.5 + ringFraction * 0.8;
+        const opacity = 0.04 + ringFraction * 0.08;
 
         for (let d = 0; d < DOTS_PER_RING; d++) {
           const angle = (d / DOTS_PER_RING) * Math.PI * 2;
@@ -71,27 +73,25 @@ export default function DotVortex() {
       if (!ctx) return;
       ctx.clearRect(0, 0, w, h);
 
-      // Vanishing point — matches perspective origin (50%, 25%)
+      // Center the vortex in the viewport
       const cx = w * 0.5;
-      const cy = h * 0.25;
+      const cy = h * 0.45;
 
       for (const dot of dots) {
-        // Slowly rotate each dot around the vortex center
         const currentAngle = dot.angle + time * dot.speed;
 
-        // Pulse the radius very subtly for organic feel
-        const pulse = 1 + Math.sin(time * 0.0005 + dot.ring * 0.5) * 0.03;
+        // Very gentle pulse
+        const pulse = 1 + Math.sin(time * 0.0002 + dot.ring * 0.4) * 0.02;
         const radius = dot.baseRadius * pulse;
 
         const x = cx + Math.cos(currentAngle) * radius;
-        const y = cy + Math.sin(currentAngle) * radius * 0.6; // Flatten vertically for perspective
+        const y = cy + Math.sin(currentAngle) * radius * 0.55; // Flatten for perspective
 
-        // Skip dots outside viewport
         if (x < -10 || x > w + 10 || y < -10 || y > h + 10) continue;
 
         ctx.beginPath();
         ctx.arc(x, y, dot.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(12, 10, 9, ${dot.opacity})`; // ink-0 color
+        ctx.fillStyle = `rgba(12, 10, 9, ${dot.opacity})`;
         ctx.fill();
       }
 

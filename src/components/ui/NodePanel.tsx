@@ -229,6 +229,7 @@ export default function NodePanel() {
   const [mapPickerLoaded, setMapPickerLoaded] = useState(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<Set<string>>(new Set());
 
   // Reset section states when switching nodes
@@ -241,6 +242,29 @@ export default function NodePanel() {
     setShowMapPicker(false);
     setMapPickerLoaded(false);
   }, [activeNodeId]);
+
+  // iOS keyboard: adjust sheet height when virtual keyboard opens/closes
+  useEffect(() => {
+    if (!isMobile || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const onResize = () => {
+      if (sheetRef.current) {
+        // When keyboard opens, visualViewport.height shrinks
+        const keyboardOffset = window.innerHeight - vv.height;
+        if (keyboardOffset > 100) {
+          // Keyboard is open — shrink sheet so input stays visible
+          sheetRef.current.style.height = `${vv.height - vv.offsetTop}px`;
+          sheetRef.current.style.transform = 'translateY(0)';
+        } else {
+          // Keyboard closed — restore normal sheet
+          sheetRef.current.style.height = '92vh';
+          sheetRef.current.style.transform = '';
+        }
+      }
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, [isMobile]);
 
   // Auto-scroll content area when conversations change
   useEffect(() => {
@@ -524,7 +548,7 @@ export default function NodePanel() {
   );
 
   const panelContent = (
-    <div ref={contentRef} className="flex-1 overflow-y-auto min-h-0">
+    <div ref={contentRef} className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
       {/* ── About section ──────────────────────────────── */}
       <div className="border-b border-surface-2">
         <SectionHeader label="about" open={aboutOpen} onToggle={() => setAboutOpen(!aboutOpen)} mobile={isMobile} />
@@ -939,7 +963,7 @@ export default function NodePanel() {
   );
 
   const panelInput = (
-    <div className="px-4 py-3 border-t border-surface-2 flex-shrink-0 bg-white">
+    <div className="px-4 py-3 border-t border-surface-2 flex-shrink-0 bg-white" style={isMobile ? { paddingBottom: 'max(12px, env(safe-area-inset-bottom))' } : undefined}>
       <form onSubmit={handleAsk} className="flex gap-2">
         <input
           type="text"
@@ -980,6 +1004,7 @@ export default function NodePanel() {
 
         {/* Bottom Sheet — stop touch events from bleeding through to views behind */}
         <div
+          ref={sheetRef}
           className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-lg flex flex-col"
           style={{
             ...sheetStyle,

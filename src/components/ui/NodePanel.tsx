@@ -212,7 +212,7 @@ export default function NodePanel() {
 
   const { sheetStyle, handleProps, snapTo, currentSnap } = useBottomSheet({
     onClose: () => setActiveNode(null),
-    initialSnap: 'half',
+    initialSnap: 'full',
   });
 
   const [question, setQuestion] = useState('');
@@ -973,15 +973,21 @@ export default function NodePanel() {
         <div
           className="fixed inset-0 bg-black/20 z-40"
           onClick={() => setActiveNode(null)}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
         />
 
-        {/* Bottom Sheet */}
+        {/* Bottom Sheet — stop touch events from bleeding through to views behind */}
         <div
           className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-lg flex flex-col"
           style={{
             ...sheetStyle,
             height: '92vh',
           }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
         >
           {/* Drag handle */}
           <div

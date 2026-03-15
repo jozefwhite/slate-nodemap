@@ -8,12 +8,14 @@ import { useEffect, useRef } from 'react';
  * creating a barely-perceptible portal/tunnel feel.
  */
 export default function DotVortex() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
 
   useEffect(() => {
+    const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!container || !canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -36,8 +38,7 @@ export default function DotVortex() {
 
     function initDots() {
       dots.length = 0;
-      // Use the smaller dimension so vortex fits within the viewport
-      const maxRadius = Math.min(w, h) * 0.45;
+      const maxRadius = Math.max(w, h) * 0.5;
 
       for (let r = 0; r < RING_COUNT; r++) {
         const ringFraction = (r + 1) / RING_COUNT;
@@ -58,11 +59,10 @@ export default function DotVortex() {
     }
 
     function resize() {
-      if (!canvas || !ctx) return;
+      if (!canvas || !ctx || !container) return;
       const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      w = rect.width;
-      h = rect.height;
+      w = container.clientWidth;
+      h = container.clientHeight;
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -98,22 +98,22 @@ export default function DotVortex() {
       animRef.current = requestAnimationFrame(draw);
     }
 
+    // Use ResizeObserver for reliable element-level sizing
+    const ro = new ResizeObserver(() => resize());
+    ro.observe(container);
+
     resize();
     animRef.current = requestAnimationFrame(draw);
 
-    window.addEventListener('resize', resize);
-
     return () => {
       cancelAnimationFrame(animRef.current);
-      window.removeEventListener('resize', resize);
+      ro.disconnect();
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 pointer-events-none"
-      style={{ zIndex: 0 }}
-    />
+    <div ref={containerRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+      <canvas ref={canvasRef} className="w-full h-full" />
+    </div>
   );
 }

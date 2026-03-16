@@ -7,17 +7,20 @@ interface UseBottomSheetOptions {
   initialSnap?: SnapPoint;
 }
 
-// Returns translateY value for each snap point (distance from top)
+// Returns translateY value for each snap point.
+// The sheet is positioned at bottom:0 with height:92vh, so at translateY=0
+// it fills from 8vh to 100vh (fully visible). Positive values push it down,
+// hiding content from the bottom.
 function getTranslateY(snap: SnapPoint): number {
   if (typeof window === 'undefined') return 0;
   const vh = window.innerHeight;
   switch (snap) {
     case 'full':
-      return vh * 0.08; // 8% from top → 92% visible
+      return 0; // fully visible (top at 8vh, bottom at viewport bottom)
     case 'half':
-      return vh * 0.5; // 50% from top → 50% visible
+      return vh * 0.42; // ~half the sheet visible
     case 'peek':
-      return vh * 0.75; // 75% from top → 25% visible
+      return vh * 0.67; // just the header visible (~25% of sheet)
     case 'closed':
       return vh; // fully off-screen
   }

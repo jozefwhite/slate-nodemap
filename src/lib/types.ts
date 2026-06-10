@@ -61,6 +61,7 @@ export interface SavedMap {
   created_at: string;
   updated_at: string;
   thumbnail_url?: string;
+  is_public?: boolean;
 }
 
 export interface WikipediaSummary {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Plus, Save, FilePlus, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -14,14 +14,16 @@ import ViewToggle from '@/components/ui/ViewToggle';
 import PathBreadcrumb from '@/components/ui/PathBreadcrumb';
 import NodePanel from '@/components/ui/NodePanel';
 import MoodboardGrid from '@/components/layout/MoodboardGrid';
-import JourneyView from '@/components/layout/JourneyView';
 import CaptureModal from '@/components/ui/CaptureModal';
+import ExportMenu from '@/components/ui/ExportMenu';
+import ShareButton from '@/components/ui/ShareButton';
 import AuthModal from '@/components/ui/AuthModal';
 import Toast from '@/components/ui/Toast';
 import MiniPlayer from '@/components/ui/MiniPlayer';
 import { createClient } from '@/lib/supabase/client';
 
 const Canvas = dynamic(() => import('@/components/graph/Canvas'), { ssr: false });
+const JourneyView = dynamic(() => import('@/components/layout/JourneyView'), { ssr: false });
 
 // Loading messages that cycle
 const loadingMessages = [
@@ -71,11 +73,13 @@ function LoadingScreen({ seedTerm }: { seedTerm: string }) {
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { nodes, isLoading, seedTerm, activeNodeId, viewMode, reset, mapStack, popMap, loadMap } = useExploration();
+  const { nodes, edges, isLoading, seedTerm, activeNodeId, viewMode, reset, mapStack, popMap, loadMap, currentMapId } = useExploration();
   const [showCapture, setShowCapture] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const { saveMap, saving } = useMapPersistence();
+  const [autoSaved, setAutoSaved] = useState(false);
+  const { saveMap, updateMap, saving } = useMapPersistence();
+  const autoSaveSkipRef = useRef(true);
   const isMobile = useIsMobile();
   const supabase = createClient();
 
@@ -83,6 +87,23 @@ export default function ExplorePage() {
     (sum: number, n: GraphNode) => sum + n.data.conversations.filter((c) => c.approved).length,
     0
   );
+
+  // Auto-save: once a map has been saved, persist changes after 2.5s of quiet
+  useEffect(() => {
+    if (!currentMapId || nodes.length === 0) return;
+    // Skip the save triggered by the initial map load
+    if (autoSaveSkipRef.current) {
+      autoSaveSkipRef.current = false;
+      return;
+    }
+    const timer = setTimeout(async () => {
+      await updateMap(currentMapId);
+      setAutoSaved(true);
+      setTimeout(() => setAutoSaved(false), 2000);
+    }, 2500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, viewMode, currentMapId]);
 
   const doSave = useCallback(async () => {
     const result = await saveMap();
@@ -177,6 +198,8 @@ export default function ExplorePage() {
           >
             <Save size={14} />
           </button>
+          <ExportMenu />
+          <ShareButton onToast={(message, type) => setToast({ message, type })} />
           <button
             onClick={handleNewMap}
             className="p-1.5 border border-surface-2 text-ink-3 hover:text-ink-0 hover:border-ink-3 transition-colors"
@@ -189,6 +212,9 @@ export default function ExplorePage() {
               expanding...
             </span>
           )}
+          {autoSaved && !isLoading && (
+            <span className="text-2xs font-mono text-ink-3 animate-fade-in">saved</span>
+          )}
         </div>
       )}
 
@@ -197,6 +223,7 @@ export default function ExplorePage() {
         <div className="h-10 border-b border-surface-2 bg-white flex items-center px-3 gap-2">
           <SearchInput compact onSearch={() => {}} />
           <ViewToggle />
+          <ExportMenu />
           {isLoading && nodes.length > 0 && (
             <span className="text-2xs font-mono text-ink-3 animate-pulse-subtle flex-shrink-0">
               expanding...
@@ -206,7 +233,7 @@ export default function ExplorePage() {
       )}
 
       {/* Main content area */}
-      <div className="flex-1 relative overflow-hidden">
+      <div id="map-canvas-root" className="flex-1 relative overflow-hidden">
         {showLoading ? (
           <LoadingScreen seedTerm={seedTerm} />
         ) : nodes.length === 0 ? (

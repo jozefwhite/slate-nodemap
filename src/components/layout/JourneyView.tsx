@@ -439,6 +439,7 @@ export default function JourneyView() {
 
       {/* Up/Down arrows — right side, shifts left when panel is open */}
       <div
+        data-no-export="true"
         className="absolute top-1/2 -translate-y-1/2 z-50 flex flex-col gap-1 transition-all duration-300"
         style={{ right: panelOpen ? 'calc(24rem + 12px)' : '12px' }}
       >

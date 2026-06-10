@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, Network, LayoutGrid, Layers, Merge, Check, X } from 'lucide-react';
+import { Trash2, Network, LayoutGrid, Layers, Merge, Check, X, Pencil, Copy, Search, Globe } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import AuthModal from '@/components/ui/AuthModal';
 import Toast from '@/components/ui/Toast';
@@ -19,13 +19,49 @@ export default function SavedPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const { maps, saving, fetchMaps, deleteMap, loadMap, saveMap } = useMapPersistence();
+  const { maps, fetchMaps, deleteMap, loadMap, renameMap, duplicateMap } = useMapPersistence();
   const { setCurrentMapId } = useExploration();
 
   // Multi-select state
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [merging, setMerging] = useState(false);
+
+  // Search + rename state
+  const [filter, setFilter] = useState('');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const visibleMaps = filter.trim()
+    ? maps.filter(
+        (m) =>
+          (m.title || '').toLowerCase().includes(filter.toLowerCase()) ||
+          (m.seed_term || '').toLowerCase().includes(filter.toLowerCase())
+      )
+    : maps;
+
+  const startRename = (map: SavedMap) => {
+    setRenamingId(map.id);
+    setRenameValue(map.title || '');
+  };
+
+  const commitRename = async () => {
+    if (!renamingId) return;
+    const ok = await renameMap(renamingId, renameValue);
+    if (!ok && renameValue.trim()) {
+      setToast({ message: 'rename failed', type: 'error' });
+    }
+    setRenamingId(null);
+  };
+
+  const handleDuplicate = async (map: SavedMap) => {
+    const copy = await duplicateMap(map);
+    setToast(
+      copy
+        ? { message: 'map duplicated', type: 'success' }
+        : { message: 'duplicate failed', type: 'error' }
+    );
+  };
 
   useEffect(() => {
     const checkUser = async () => {
@@ -194,19 +230,35 @@ export default function SavedPage() {
               </div>
             </div>
 
+            {/* Search filter */}
+            {maps.length > 3 && (
+              <div className="relative">
+                <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+                <input
+                  type="text"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="search maps..."
+                  className="w-full bg-white border border-surface-2 text-xs text-ink-1 pl-8 pr-3 py-2 placeholder:text-ink-3 focus:outline-none focus:border-ink-3 transition-colors"
+                />
+              </div>
+            )}
+
             {maps.length === 0 ? (
               <p className="text-xs text-ink-3">no saved maps yet. explore something and save it.</p>
+            ) : visibleMaps.length === 0 ? (
+              <p className="text-xs text-ink-3">no maps match &ldquo;{filter}&rdquo;</p>
             ) : (
               <div className="border border-surface-2">
-                {maps.map((map, i) => (
+                {visibleMaps.map((map, i) => (
                   <div
                     key={map.id}
                     className={`flex items-center justify-between px-4 py-3 hover:bg-surface-1 cursor-pointer transition-colors group ${
                       i > 0 ? 'border-t border-surface-2' : ''
                     } ${selectedIds.has(map.id) ? 'bg-surface-1' : ''}`}
-                    onClick={() => handleLoadMap(map)}
+                    onClick={() => renamingId !== map.id && handleLoadMap(map)}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       {selectMode ? (
                         <div
                           className={`w-4 h-4 border flex items-center justify-center flex-shrink-0 transition-colors ${
@@ -216,29 +268,73 @@ export default function SavedPage() {
                           {selectedIds.has(map.id) && <Check size={12} className="text-white" />}
                         </div>
                       ) : map.view_mode === 'graph' ? (
-                        <Network size={14} className="text-ink-3" />
+                        <Network size={14} className="text-ink-3 flex-shrink-0" />
                       ) : map.view_mode === 'journey' ? (
-                        <Layers size={14} className="text-ink-3" />
+                        <Layers size={14} className="text-ink-3 flex-shrink-0" />
                       ) : (
-                        <LayoutGrid size={14} className="text-ink-3" />
+                        <LayoutGrid size={14} className="text-ink-3 flex-shrink-0" />
                       )}
-                      <div>
-                        <p className="text-sm text-ink-0">{map.title}</p>
+                      <div className="flex-1 min-w-0">
+                        {renamingId === map.id ? (
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={commitRename}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitRename();
+                              if (e.key === 'Escape') setRenamingId(null);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                            className="w-full bg-surface-1 border border-surface-3 text-sm text-ink-0 px-2 py-0.5 focus:outline-none focus:border-ink-3"
+                          />
+                        ) : (
+                          <p className="text-sm text-ink-0 truncate flex items-center gap-1.5">
+                            {map.title}
+                            {map.is_public && (
+                              <Globe size={10} className="text-accent flex-shrink-0" />
+                            )}
+                          </p>
+                        )}
                         <p className="text-2xs text-ink-3">
                           {map.nodes.length} nodes &middot; {formatDate(map.updated_at)}
                         </p>
                       </div>
                     </div>
-                    {!selectMode && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteMap(map.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-ink-3 hover:text-red-500 transition-all p-1"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                    {!selectMode && renamingId !== map.id && (
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startRename(map);
+                          }}
+                          className="text-ink-3 hover:text-ink-0 transition-colors p-1.5"
+                          title="Rename"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicate(map);
+                          }}
+                          className="text-ink-3 hover:text-ink-0 transition-colors p-1.5"
+                          title="Duplicate"
+                        >
+                          <Copy size={13} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMap(map.id);
+                          }}
+                          className="text-ink-3 hover:text-red-500 transition-colors p-1.5"
+                          title="Delete"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}

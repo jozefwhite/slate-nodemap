@@ -1,4 +1,4 @@
-export type NodeSource = 'wikipedia' | 'dictionary' | 'wikidata' | 'image' | 'user';
+export type NodeSource = 'wikipedia' | 'dictionary' | 'wikidata' | 'image' | 'user' | 'arena';
 export type ViewMode = 'graph' | 'moodboard' | 'journey';
 
 export interface NodeQA {

@@ -15,6 +15,12 @@ body {
   border-radius: 0 !important;
 }
 
+/* Squishy displacement: nodes pushed aside by a drag glide into place.
+   The node actually being dragged stays 1:1 with the cursor. */
+.react-flow__node:not(.dragging) {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .react-flow__controls {
   border-radius: 0 !important;
   box-shadow: none !important;

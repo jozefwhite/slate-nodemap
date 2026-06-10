@@ -34,6 +34,7 @@ const sourceLabels: Record<NodeSource, string> = {
   wikidata: 'WIKIDATA',
   image: 'IMAGE',
   user: 'USER',
+  arena: 'ARE.NA',
 };
 
 const sourceColors: Record<NodeSource, string> = {
@@ -42,6 +43,7 @@ const sourceColors: Record<NodeSource, string> = {
   wikidata: 'bg-node-wikidata',
   image: 'bg-node-image',
   user: 'bg-node-user',
+  arena: 'bg-node-arena',
 };
 
 /* ── Helpers ─────────────────────────────────────────────── */

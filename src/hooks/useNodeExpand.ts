@@ -109,51 +109,58 @@ export function useNodeExpand() {
         const label = node.data.label;
         const isSingleWord = !label.includes(' ');
 
-        // Fetch Wikipedia links
-        const wikiRes = await fetch(`/api/wikipedia?title=${encodeURIComponent(label)}`);
-        const wikiData = await wikiRes.json();
+        // Fetch every source in parallel — Wikipedia backbone plus
+        // lateral discovery (Are.na channels, Datamuse associations)
+        const [wikiData, dictData, arenaData, museData] = await Promise.all([
+          fetch(`/api/wikipedia?title=${encodeURIComponent(label)}`)
+            .then((r) => r.json())
+            .catch(() => ({})),
+          isSingleWord
+            ? fetch(`/api/dictionary?word=${encodeURIComponent(label)}`)
+                .then((r) => r.json())
+                .catch(() => null)
+            : Promise.resolve(null),
+          fetch(`/api/arena?q=${encodeURIComponent(label)}`)
+            .then((r) => r.json())
+            .catch(() => ({ channels: [] })),
+          fetch(`/api/datamuse?q=${encodeURIComponent(label)}`)
+            .then((r) => r.json())
+            .catch(() => ({ associations: [] })),
+        ]);
+
         // Prefer semantically related articles (morelike), fall back to page links
         const wikiLinks: string[] = (
           wikiData.related && wikiData.related.length > 0
             ? wikiData.related
             : wikiData.links || []
-        ).slice(0, 6);
+        ).slice(0, 5);
 
-        // Optionally fetch dictionary for single words
-        let dictWords: string[] = [];
-        if (isSingleWord) {
-          try {
-            const dictRes = await fetch(`/api/dictionary?word=${encodeURIComponent(label)}`);
-            const dictData = await dictRes.json();
-            dictWords = (dictData.relatedWords || []).slice(0, 3);
-          } catch {
-            // Dictionary fetch is optional
-          }
-        }
+        const dictWords: string[] = (dictData?.relatedWords || []).slice(0, 2);
 
-        // Use Are.na channels as hidden discovery layer — lateral connections
-        // get mixed into wiki suggestions without referencing the platform
-        try {
-          const arenaRes = await fetch(`/api/arena?q=${encodeURIComponent(label)}`);
-          const arenaData = await arenaRes.json();
-          const arenaHints = (arenaData.channels || [])
-            .filter((c: { length: number }) => c.length > 5)
-            .map((c: { title: string }) => c.title)
-            .slice(0, 2);
-          // Only add hints that aren't already in the wiki links
-          const existingLower = new Set(wikiLinks.map((l: string) => l.toLowerCase()));
-          for (const hint of arenaHints) {
-            if (!existingLower.has(hint.toLowerCase())) {
-              wikiLinks.push(hint);
-            }
-          }
-        } catch {
-          // Are.na is optional
-        }
+        // Are.na channels — first-class lateral nodes with their own source
+        const arenaChannels: {
+          title: string;
+          url: string;
+          length: number;
+          description?: string;
+          thumbnailUrl?: string;
+        }[] = (arenaData.channels || []).slice(0, 2);
 
-        // If Wikipedia, dictionary, and Are.na all returned nothing,
-        // fall back to Claude for AI-suggested connections
-        if (wikiLinks.length === 0 && dictWords.length === 0) {
+        // Datamuse lateral associations that aren't already covered
+        const taken = new Set(
+          [...wikiLinks, ...dictWords].map((s) => s.toLowerCase())
+        );
+        const associations: string[] = (museData.associations || [])
+          .filter((a: string) => !taken.has(a.toLowerCase()))
+          .slice(0, 2);
+
+        // Only fall back to Claude when every source came back empty
+        if (
+          wikiLinks.length === 0 &&
+          dictWords.length === 0 &&
+          arenaChannels.length === 0 &&
+          associations.length === 0
+        ) {
           try {
             const existingLabels = useExploration.getState().nodes.map((n) => n.data.label);
             const seedTerm = useExploration.getState().seedTerm;
@@ -176,7 +183,8 @@ export function useNodeExpand() {
           }
         }
 
-        const childCount = wikiLinks.length + dictWords.length;
+        const childCount =
+          wikiLinks.length + dictWords.length + associations.length + arenaChannels.length;
         if (childCount === 0) {
           setLoading(false);
           return;
@@ -194,24 +202,48 @@ export function useNodeExpand() {
 
         const newNodes: GraphNode[] = [];
         const newEdges: GraphEdge[] = [];
+        let posIndex = 0;
 
-        // Create Wikipedia child nodes
-        wikiLinks.forEach((title, i) => {
-          const childNode = makeNode(title, 'wikipedia', positions[i], {
+        // Wikipedia children — the semantic backbone
+        wikiLinks.forEach((title) => {
+          const childNode = makeNode(title, 'wikipedia', positions[posIndex++], {
             depth: node.data.depth + 1,
           });
           newNodes.push(childNode);
           newEdges.push(makeEdge(nodeId, childNode.id));
         });
 
-        // Create dictionary child nodes
-        dictWords.forEach((word, i) => {
-          const posIndex = wikiLinks.length + i;
-          const childNode = makeNode(word, 'dictionary', positions[posIndex], {
+        // Lateral associations — enriched by prefetch like wiki nodes
+        associations.forEach((word) => {
+          const childNode = makeNode(word, 'wikipedia', positions[posIndex++], {
+            depth: node.data.depth + 1,
+          });
+          newNodes.push(childNode);
+          newEdges.push(makeEdge(nodeId, childNode.id, 'association'));
+        });
+
+        // Dictionary children
+        dictWords.forEach((word) => {
+          const childNode = makeNode(word, 'dictionary', positions[posIndex++], {
             depth: node.data.depth + 1,
           });
           newNodes.push(childNode);
           newEdges.push(makeEdge(nodeId, childNode.id, 'synonym'));
+        });
+
+        // Are.na channels — curated lateral collections, linked + pre-enriched
+        arenaChannels.forEach((channel) => {
+          const childNode = makeNode(channel.title, 'arena', positions[posIndex++], {
+            depth: node.data.depth + 1,
+            summary:
+              channel.description ||
+              `A curated are.na channel with ${channel.length} blocks — a lateral path worth wandering.`,
+            url: channel.url,
+            imageUrl: channel.thumbnailUrl,
+            tags: ['are.na'],
+          });
+          newNodes.push(childNode);
+          newEdges.push(makeEdge(nodeId, childNode.id, 'are.na'));
         });
 
         // Deduplicate against existing nodes
@@ -225,8 +257,10 @@ export function useNodeExpand() {
         // Settle layout immediately after adding new nodes
         scheduleSettle();
 
-        // Pre-fetch summaries + thumbnails in background (fire-and-forget)
-        prefetchSummaries(unique);
+        // Pre-fetch summaries + thumbnails in background (fire-and-forget).
+        // Are.na nodes are already enriched — a Wikipedia lookup on a channel
+        // title would attach the wrong content.
+        prefetchSummaries(unique.filter((n) => n.data.source !== 'arena'));
       } catch (error) {
         console.error('Expansion failed:', error);
       } finally {

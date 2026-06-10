@@ -18,6 +18,7 @@ import CustomEdge from './CustomEdge';
 import { useExploration } from '@/hooks/useExploration';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { NodeSource } from '@/lib/types';
+import { settleAround } from '@/lib/graph-utils';
 
 const nodeTypes: NodeTypes = {
   concept: ConceptNode,
@@ -34,6 +35,7 @@ const minimapColors: Record<NodeSource, string> = {
   wikidata: '#06b6d4',
   image: '#ec4899',
   user: '#10b981',
+  arena: '#64748b',
 };
 
 export default function Canvas() {
@@ -82,6 +84,28 @@ export default function Canvas() {
     setActiveNode(null);
   }, [setActiveNode]);
 
+  // Drag: sync position to the store and squish overlapping neighbors
+  // out of the way. Soft factor during drag = organic push; full settle
+  // on release so nothing is left overlapping.
+  const applyDrag = useCallback((node: Node, softness: number) => {
+    const { nodes: current } = useExploration.getState();
+    const moved = current.map((n) =>
+      n.id === node.id ? { ...n, position: { ...node.position } } : n
+    );
+    const squished = settleAround(moved, node.id, softness);
+    useExploration.setState({ nodes: squished ?? moved });
+  }, []);
+
+  const onNodeDrag = useCallback(
+    (_: React.MouseEvent, node: Node) => applyDrag(node, 0.45),
+    [applyDrag]
+  );
+
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => applyDrag(node, 1),
+    [applyDrag]
+  );
+
   const onInit = useCallback((instance: ReactFlowInstance) => {
     rfInstance.current = instance;
   }, []);
@@ -95,6 +119,8 @@ export default function Canvas() {
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onInit={onInit}
         nodesDraggable={!isMobile}
         fitView

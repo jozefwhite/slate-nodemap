@@ -16,6 +16,7 @@ const borderColors: Record<NodeSource, string> = {
   wikidata: 'border-l-node-wikidata',
   image: 'border-l-node-image',
   user: 'border-l-node-user',
+  arena: 'border-l-node-arena',
 };
 
 const bgAccent: Record<NodeSource, string> = {
@@ -24,6 +25,7 @@ const bgAccent: Record<NodeSource, string> = {
   wikidata: 'bg-node-wikidata',
   image: 'bg-node-image',
   user: 'bg-node-user',
+  arena: 'bg-node-arena',
 };
 
 /* ── 3D tuning constants ─────────────────────────────────────────── */

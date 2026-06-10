@@ -111,8 +111,8 @@ export function settleLayout(nodes: GraphNode[]): GraphNode[] | null {
   const NODE_W = 190;
   const IMAGE_H = 130; // banner (70) + label (~40) + padding
   const TEXT_H = 55;
-  const GAP_X = 20;
-  const GAP_Y = 16;
+  const GAP_X = 24;
+  const GAP_Y = 20;
 
   const getH = (n: GraphNode) => (n.data.imageUrl ? IMAGE_H : TEXT_H);
 
@@ -157,6 +157,74 @@ export function settleLayout(nodes: GraphNode[]): GraphNode[] | null {
               a.position.x += shift;
               b.position.x -= shift;
             }
+          }
+          changed = true;
+        }
+      }
+    }
+  }
+
+  return changed ? settled : null;
+}
+
+/**
+ * Squishy settle around a pinned node (the one being dragged).
+ * Like settleLayout, but the pinned node never moves — overlapping
+ * neighbors absorb the full displacement, and they can cascade into
+ * their own neighbors. `softness` < 1 moves nodes only part of the
+ * way per call, which reads as an organic squish during drag.
+ */
+export function settleAround(
+  nodes: GraphNode[],
+  pinnedId: string,
+  softness = 1
+): GraphNode[] | null {
+  if (nodes.length < 2) return null;
+
+  const ITERATIONS = 3;
+  const NODE_W = 190;
+  const IMAGE_H = 130;
+  const TEXT_H = 55;
+  const GAP_X = 24;
+  const GAP_Y = 20;
+
+  const getH = (n: GraphNode) => (n.data.imageUrl ? IMAGE_H : TEXT_H);
+
+  let changed = false;
+  const settled = nodes.map((n) => ({ ...n, position: { ...n.position } }));
+
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    for (let i = 0; i < settled.length; i++) {
+      for (let j = i + 1; j < settled.length; j++) {
+        const a = settled[i];
+        const b = settled[j];
+
+        const dx = Math.abs(a.position.x - b.position.x);
+        const dy = Math.abs(a.position.y - b.position.y);
+
+        const minDx = NODE_W + GAP_X;
+        const minDy = (getH(a) + getH(b)) / 2 + GAP_Y;
+
+        const overlapX = minDx - dx;
+        const overlapY = minDy - dy;
+
+        if (overlapX > 0 && overlapY > 0) {
+          const aPinned = a.id === pinnedId;
+          const bPinned = b.id === pinnedId;
+          // Two free nodes split the shift; a pinned pair pushes one node fully
+          const aShare = aPinned ? 0 : bPinned ? 1 : 0.5;
+          const bShare = bPinned ? 0 : aPinned ? 1 : 0.5;
+
+          if (overlapY <= overlapX) {
+            const shift = (overlapY + 2) * softness;
+            const dir = a.position.y <= b.position.y ? -1 : 1;
+            a.position.y += dir * shift * aShare;
+            b.position.y -= dir * shift * bShare;
+          } else {
+            const shift = (overlapX + 2) * softness;
+            const dir = a.position.x <= b.position.x ? -1 : 1;
+            a.position.x += dir * shift * aShare;
+            b.position.x -= dir * shift * bShare;
           }
           changed = true;
         }

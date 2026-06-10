@@ -17,73 +17,81 @@ function scheduleSettle() {
   }, 300); // batch image loads within 300ms
 }
 
-// Fire-and-forget: pre-fetch Wikipedia summaries + thumbnails for child nodes
-async function prefetchSummaries(nodesToFetch: GraphNode[]) {
-  for (let i = 0; i < nodesToFetch.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 200));
+// Enrich a single node: Wikipedia summary + thumbnail, YouTube image fallback
+async function prefetchOne(node: GraphNode) {
+  try {
+    const res = await fetch(
+      `/api/wikipedia?title=${encodeURIComponent(node.data.label)}`
+    );
+    const wikiData = await res.json();
 
+    if (wikiData.summary?.extract || wikiData.intro) {
+      const summaryText = wikiData.intro || wikiData.summary?.extract || '';
+      const { nodes: currentNodes } = useExploration.getState();
+      const target = currentNodes.find((n) => n.id === node.id);
+      if (target && !target.data.summary) {
+        const gotImage = !target.data.imageUrl && !!wikiData.summary?.thumbnail?.source;
+        useExploration.setState({
+          nodes: currentNodes.map((n) =>
+            n.id === node.id
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    summary: summaryText,
+                    url: wikiData.summary?.content_urls?.desktop?.page || n.data.url,
+                    imageUrl: n.data.imageUrl || wikiData.summary?.thumbnail?.source,
+                    summarySource: 'wikipedia' as const,
+                  },
+                }
+              : n
+          ),
+        });
+        // If this node just got an image, resolve any new overlaps
+        if (gotImage) scheduleSettle();
+      }
+    }
+  } catch {
+    // Silent fail — summary will load when panel opens
+  }
+
+  // YouTube thumbnail fallback — if Wikipedia had no image, try YouTube
+  const { nodes: latestNodes } = useExploration.getState();
+  const latestTarget = latestNodes.find((n) => n.id === node.id);
+  if (latestTarget && !latestTarget.data.imageUrl) {
     try {
-      const res = await fetch(
-        `/api/wikipedia?title=${encodeURIComponent(nodesToFetch[i].data.label)}`
+      const ytRes = await fetch(
+        `/api/youtube?q=${encodeURIComponent(node.data.label)}&maxResults=1`
       );
-      const wikiData = await res.json();
-
-      if (wikiData.summary?.extract || wikiData.intro) {
-        const summaryText = wikiData.intro || wikiData.summary?.extract || '';
-        const { nodes: currentNodes } = useExploration.getState();
-        const target = currentNodes.find((n) => n.id === nodesToFetch[i].id);
-        if (target && !target.data.summary) {
-          const gotImage = !target.data.imageUrl && !!wikiData.summary?.thumbnail?.source;
-          useExploration.setState({
-            nodes: currentNodes.map((n) =>
-              n.id === nodesToFetch[i].id
-                ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      summary: summaryText,
-                      url: wikiData.summary?.content_urls?.desktop?.page || n.data.url,
-                      imageUrl: n.data.imageUrl || wikiData.summary?.thumbnail?.source,
-                      summarySource: 'wikipedia' as const,
-                    },
-                  }
-                : n
-            ),
-          });
-          // If this node just got an image, resolve any new overlaps
-          if (gotImage) scheduleSettle();
-        }
+      const ytData = await ytRes.json();
+      if (ytData.results?.[0]?.thumbnailUrl) {
+        const { nodes: nowNodes } = useExploration.getState();
+        useExploration.setState({
+          nodes: nowNodes.map((n) =>
+            n.id === node.id && !n.data.imageUrl
+              ? { ...n, data: { ...n.data, imageUrl: ytData.results[0].thumbnailUrl } }
+              : n
+          ),
+        });
+        // Image just loaded — resolve overlaps
+        scheduleSettle();
       }
     } catch {
-      // Silent fail — summary will load when panel opens
-    }
-
-    // YouTube thumbnail fallback — if Wikipedia had no image, try YouTube
-    const { nodes: latestNodes } = useExploration.getState();
-    const latestTarget = latestNodes.find((n) => n.id === nodesToFetch[i].id);
-    if (latestTarget && !latestTarget.data.imageUrl) {
-      try {
-        const ytRes = await fetch(
-          `/api/youtube?q=${encodeURIComponent(nodesToFetch[i].data.label)}&maxResults=1`
-        );
-        const ytData = await ytRes.json();
-        if (ytData.results?.[0]?.thumbnailUrl) {
-          const { nodes: nowNodes } = useExploration.getState();
-          useExploration.setState({
-            nodes: nowNodes.map((n) =>
-              n.id === nodesToFetch[i].id && !n.data.imageUrl
-                ? { ...n, data: { ...n.data, imageUrl: ytData.results[0].thumbnailUrl } }
-                : n
-            ),
-          });
-          // Image just loaded — resolve overlaps
-          scheduleSettle();
-        }
-      } catch {
-        // YouTube fallback is optional
-      }
+      // YouTube fallback is optional
     }
   }
+}
+
+// Fire-and-forget: pre-fetch summaries with bounded concurrency (3 at a time)
+async function prefetchSummaries(nodesToFetch: GraphNode[]) {
+  const queue = [...nodesToFetch];
+  const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const node = queue.shift();
+      if (node) await prefetchOne(node);
+    }
+  });
+  await Promise.all(workers);
 }
 
 export function useNodeExpand() {

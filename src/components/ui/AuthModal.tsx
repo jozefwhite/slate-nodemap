@@ -12,12 +12,9 @@ interface AuthModalProps {
 export default function AuthModal({ onSuccess, onClose }: AuthModalProps) {
   const supabase = createClient();
   const [email, setEmail] = useState('');
-  const [accessCode, setAccessCode] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
-
-  const signupCode = process.env.NEXT_PUBLIC_SIGNUP_CODE;
 
   // Listen for auth state change (user clicks magic link in another tab)
   useEffect(() => {
@@ -36,12 +33,6 @@ export default function AuthModal({ onSuccess, onClose }: AuthModalProps) {
 
     if (!email.trim()) {
       setError('enter your email');
-      return;
-    }
-
-    // Validate access code
-    if (signupCode && accessCode.trim().toLowerCase() !== signupCode.toLowerCase()) {
-      setError('invalid access code');
       return;
     }
 
@@ -103,19 +94,6 @@ export default function AuthModal({ onSuccess, onClose }: AuthModalProps) {
                 onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               />
             </div>
-
-            {signupCode && (
-              <div>
-                <input
-                  type="text"
-                  value={accessCode}
-                  onChange={(e) => setAccessCode(e.target.value)}
-                  placeholder="access code"
-                  className="w-full bg-surface-1 border border-surface-2 text-sm text-ink-1 px-4 py-3 placeholder:text-ink-3 focus:outline-none focus:border-ink-3 transition-colors"
-                  onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                />
-              </div>
-            )}
 
             {error && (
               <p className="text-xs text-red-500">{error}</p>

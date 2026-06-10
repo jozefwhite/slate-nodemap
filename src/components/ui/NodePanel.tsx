@@ -873,6 +873,24 @@ export default function NodePanel() {
                       {renderAnswerWithLinks(qa.answer, handleBranchTopic)}
                     </p>
 
+                    {/* Source attribution */}
+                    <div className="flex items-center gap-1.5 mt-2 text-2xs font-mono text-ink-3">
+                      <span>claude</span>
+                      {data.url && (
+                        <>
+                          <span>·</span>
+                          <a
+                            href={data.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-accent underline decoration-surface-3 underline-offset-2"
+                          >
+                            {data.summarySource === 'wikipedia' ? 'wikipedia context' : 'source'}
+                          </a>
+                        </>
+                      )}
+                    </div>
+
                     {/* Extra suggested topics not already inline */}
                     {qa.suggestedTopics &&
                       qa.suggestedTopics.length > 0 &&

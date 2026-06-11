@@ -106,6 +106,124 @@ function MediaSubsection({
   );
 }
 
+// Are.na channel contents — fetches the channel's actual blocks so the
+// node opens with something to look at, not just a description
+interface ArenaContentBlock {
+  id: number;
+  title: string;
+  class: string;
+  thumbUrl?: string;
+  sourceUrl?: string;
+  excerpt?: string;
+}
+
+function ArenaChannelSection({
+  channelUrl,
+  isMobile,
+}: {
+  channelUrl?: string;
+  isMobile: boolean;
+}) {
+  const [open, setOpen] = useState(true);
+  const [blocks, setBlocks] = useState<ArenaContentBlock[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Channel slug is the last path segment of the are.na URL
+  const slug = channelUrl ? channelUrl.split('/').filter(Boolean).pop() : null;
+
+  useEffect(() => {
+    if (!slug) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/arena/channel?slug=${encodeURIComponent(slug)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setBlocks(d.blocks || []);
+      })
+      .catch(() => {
+        if (!cancelled) setBlocks([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (!slug) return null;
+
+  return (
+    <div className="border-b border-surface-2">
+      <SectionHeader
+        label="channel contents"
+        badge={blocks.length > 0 ? `(${blocks.length})` : undefined}
+        open={open}
+        onToggle={() => setOpen(!open)}
+        mobile={isMobile}
+      />
+
+      {open && (
+        <div className="px-4 pb-3 -mt-0.5">
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-ink-3 py-1">
+              <Loader2 size={12} className="animate-spin" />
+              loading blocks...
+            </div>
+          ) : blocks.length === 0 ? (
+            <p className="text-xs text-ink-3 italic py-1">couldn&apos;t load channel contents</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-1.5">
+                {blocks.map((block) => (
+                  <a
+                    key={block.id}
+                    href={`https://www.are.na/block/${block.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block bg-surface-1 border border-surface-2 hover:border-ink-3 transition-colors overflow-hidden"
+                    title={block.title}
+                  >
+                    {block.thumbUrl ? (
+                      <div className="aspect-square overflow-hidden">
+                        <img
+                          src={block.thumbUrl}
+                          alt={block.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : (
+                      <div className="aspect-square p-1.5 flex items-center justify-center">
+                        <span className="text-2xs text-ink-2 line-clamp-4 leading-tight text-center">
+                          {block.excerpt || block.title || block.class}
+                        </span>
+                      </div>
+                    )}
+                  </a>
+                ))}
+              </div>
+              {channelUrl && (
+                <a
+                  href={channelUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-2xs font-mono text-ink-3 hover:text-accent mt-2 transition-colors"
+                >
+                  open full channel on are.na <ExternalLink size={9} />
+                </a>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Music track row with play button that triggers the persistent mini player
 function MusicTrackRow({ track, isMobile }: { track: MusicResult; isMobile: boolean }) {
   const { track: currentTrack, isPlaying, play, pause, resume } = useAudioPlayer();
@@ -225,7 +343,7 @@ export default function NodePanel() {
   const [aboutOpen, setAboutOpen] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(true);
-  const [mediaOpen, setMediaOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(true);
   const [qaOpen, setQaOpen] = useState(true);
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [mapPickerLoaded, setMapPickerLoaded] = useState(false);
@@ -239,7 +357,7 @@ export default function NodePanel() {
     setDescExpanded(false);
     setAboutOpen(true);
     setConnectionsOpen(true);
-    setMediaOpen(false);
+    setMediaOpen(true);
     setQaOpen(true);
     setShowMapPicker(false);
     setMapPickerLoaded(false);
@@ -607,6 +725,11 @@ export default function NodePanel() {
           </div>
         )}
       </div>
+
+      {/* ── Are.na channel contents — the actual blocks ── */}
+      {data.source === 'arena' && (
+        <ArenaChannelSection channelUrl={data.url} isMobile={isMobile} />
+      )}
 
       {/* ── Media section ──────────────────────────────── */}
       <div className="border-b border-surface-2">

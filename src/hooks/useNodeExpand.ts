@@ -144,6 +144,8 @@ export function useNodeExpand() {
           length: number;
           description?: string;
           thumbnailUrl?: string;
+          userName?: string;
+          blockTitles?: string[];
         }[] = (arenaData.channels || []).slice(0, 2);
 
         // Datamuse lateral associations that aren't already covered
@@ -233,11 +235,18 @@ export function useNodeExpand() {
 
         // Are.na channels — curated lateral collections, linked + pre-enriched
         arenaChannels.forEach((channel) => {
+          const summaryParts: string[] = [];
+          if (channel.description) summaryParts.push(channel.description);
+          summaryParts.push(
+            `${channel.length} blocks curated by ${channel.userName || 'the are.na community'}.`
+          );
+          if (channel.blockTitles && channel.blockTitles.length > 0) {
+            summaryParts.push(`Inside: ${channel.blockTitles.join(' · ')}`);
+          }
+
           const childNode = makeNode(channel.title, 'arena', positions[posIndex++], {
             depth: node.data.depth + 1,
-            summary:
-              channel.description ||
-              `A curated are.na channel with ${channel.length} blocks — a lateral path worth wandering.`,
+            summary: summaryParts.join('\n'),
             url: channel.url,
             imageUrl: channel.thumbnailUrl,
             tags: ['are.na'],

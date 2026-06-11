@@ -6,6 +6,8 @@ export interface ArenaChannel {
   url: string;
   description?: string;
   thumbnailUrl?: string;
+  userName?: string;
+  blockTitles?: string[];
 }
 
 export interface ArenaBlock {
@@ -20,6 +22,16 @@ export interface ArenaBlock {
   class: string;
 }
 
+/** Flattened block for the channel-contents panel grid */
+export interface ArenaContentBlock {
+  id: number;
+  title: string;
+  class: string; // Image | Link | Text | Media | Attachment | Channel
+  thumbUrl?: string;
+  sourceUrl?: string;
+  excerpt?: string;
+}
+
 export interface ArenaSearchResult {
   channels: ArenaChannel[];
   blocks: ArenaBlock[];
@@ -27,22 +39,51 @@ export interface ArenaSearchResult {
 
 const ARENA_BASE = 'https://api.are.na/v2';
 
-/** Grab the first image block of a channel to use as its thumbnail */
-async function fetchChannelThumb(slug: string): Promise<string | undefined> {
+/** Fetch a channel's blocks, flattened for display */
+export async function fetchChannelBlocks(
+  slug: string,
+  per = 12
+): Promise<ArenaContentBlock[]> {
   try {
-    const res = await fetch(`${ARENA_BASE}/channels/${slug}/contents?per=4`, {
+    const res = await fetch(`${ARENA_BASE}/channels/${slug}/contents?per=${per}`, {
       cache: 'no-store',
     });
-    if (!res.ok) return undefined;
+    if (!res.ok) return [];
     const data = await res.json();
-    for (const block of data.contents || []) {
-      const thumb = block?.image?.display?.url || block?.image?.thumb?.url;
-      if (thumb) return thumb;
-    }
+
+    return (data.contents || [])
+      .filter((b: Record<string, unknown>) => b.class !== 'Channel')
+      .map((b: Record<string, unknown>) => {
+        const image = b.image as
+          | { thumb?: { url?: string }; display?: { url?: string } }
+          | null;
+        const source = b.source as { url?: string } | null;
+        const content = (b.content as string) || '';
+        return {
+          id: b.id as number,
+          title: (b.title as string) || (b.generated_title as string) || '',
+          class: b.class as string,
+          thumbUrl: image?.thumb?.url || image?.display?.url,
+          sourceUrl: source?.url,
+          excerpt: content ? content.slice(0, 140) : undefined,
+        };
+      });
   } catch {
-    // Thumbnail is optional
+    return [];
   }
-  return undefined;
+}
+
+/** Channel preview for expansion: thumbnail + a taste of what's inside */
+async function fetchChannelPreview(
+  slug: string
+): Promise<{ thumbnailUrl?: string; blockTitles: string[] }> {
+  const blocks = await fetchChannelBlocks(slug, 6);
+  const thumbnailUrl = blocks.find((b) => b.thumbUrl)?.thumbUrl;
+  const blockTitles = blocks
+    .map((b) => b.title)
+    .filter((t) => t && t.length > 1 && t.length < 60)
+    .slice(0, 3);
+  return { thumbnailUrl, blockTitles };
 }
 
 export async function searchArena(query: string): Promise<ArenaSearchResult> {
@@ -62,11 +103,10 @@ export async function searchArena(query: string): Promise<ArenaSearchResult> {
     const channels: ArenaChannel[] = await Promise.all(
       rawChannels.map(async (c: Record<string, unknown>) => {
         const slug = c.slug as string;
-        const userSlug =
-          ((c.user as Record<string, unknown>)?.slug as string) ||
-          (c.owner_slug as string) ||
-          'channels';
+        const user = c.user as { slug?: string; full_name?: string; username?: string } | null;
+        const userSlug = user?.slug || (c.owner_slug as string) || 'channels';
         const metadata = c.metadata as { description?: string } | null;
+        const preview = await fetchChannelPreview(slug);
         return {
           id: c.id as number,
           title: c.title as string,
@@ -74,7 +114,9 @@ export async function searchArena(query: string): Promise<ArenaSearchResult> {
           length: c.length as number,
           url: `https://www.are.na/${userSlug}/${slug}`,
           description: metadata?.description || undefined,
-          thumbnailUrl: await fetchChannelThumb(slug),
+          userName: user?.full_name || user?.username || undefined,
+          thumbnailUrl: preview.thumbnailUrl,
+          blockTitles: preview.blockTitles,
         };
       })
     );

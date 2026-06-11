@@ -38,12 +38,18 @@ interface ExplorationState {
   popMap: () => { mapId: string; seedTerm: string } | null;
 }
 
+// Journey (stack) view is the nicer default on small screens; graph on desktop.
+// Evaluated once at store creation — SSR safely falls back to 'graph' since the
+// view area only renders client-side once nodes exist.
+const defaultViewMode: ViewMode =
+  typeof window !== 'undefined' && window.innerWidth < 768 ? 'journey' : 'graph';
+
 const initialState = {
   nodes: [] as GraphNode[],
   edges: [] as GraphEdge[],
   path: [] as PathStep[],
   activeNodeId: null as string | null,
-  viewMode: 'graph' as const,
+  viewMode: defaultViewMode,
   isLoading: false,
   seedTerm: '',
   panelSnapPoint: 'half' as PanelSnap,
